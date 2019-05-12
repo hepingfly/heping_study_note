@@ -2143,9 +2143,13 @@ public class UserService {
 
 #### 1、BeanFactoryPostProcessor
 
-之前我们有说过 BeanPostProcessor ，这个是 bean 的后置处理器，bean 创建对象初始化前后进行拦截工作的。
+> 1、之前我们有说过 `BeanPostProcessor` ，这个是 bean 的后置处理器，bean 创建对象初始化前后进行拦截工作的。
+>
+> 2、`BeanFactoryPostProcessor`，这个是 beanFactory 的后置处理器，在 BeanFactory 标准初始化之后调用，所有的 bean 定义已经保存加载到 beanFactory, 但是 bean 的实例还未创建。
+>
+> 3、spring ioc 容器允许 `BeanFactoryPostProcessor` 在容器实例化任何 bean 之前读取 bean 的定义（配置元数据），并可以修改它。同时可以定义多个 `BeanFactoryPostProcessor` ，通过设置 order 属性来确定各个 `BeanFactoryPostProcessor` 的执行顺序
 
-BeanFactoryPostProcessor，这个是 beanFactory 的后置处理器，在 BeanFactory 标准初始化之后调用，所有的 bean 定义已经保存加载到 beanFactory, 但是 bean 的实例还未创建。
+
 
 
 

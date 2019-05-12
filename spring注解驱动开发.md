@@ -2149,11 +2149,48 @@ public class UserService {
 >
 > 3、spring ioc 容器允许 `BeanFactoryPostProcessor` 在容器实例化任何 bean 之前读取 bean 的定义（配置元数据），并可以修改它。同时可以定义多个 `BeanFactoryPostProcessor` ，通过设置 order 属性来确定各个 `BeanFactoryPostProcessor` 的执行顺序
 
+MyBeanFactoryPostProcessor.java ：
 
+```java
+@Component
+public class MyBeanFactoryPostProcessor implements BeanFactoryPostProcessor {
 
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory configurableListableBeanFactory) throws BeansException {
+        System.out.println("postProcessBeanFactory...方法");
+        int count = configurableListableBeanFactory.getBeanDefinitionCount();
+        String[] names = configurableListableBeanFactory.getBeanDefinitionNames();
+        System.out.println("一共定义了" + count + "个 bean");
+        System.out.println("定义的 bean 的名字是：" + Arrays.asList(names));
+    }
+}
+```
 
+ExtConfig.java ：
 
+```Java
+@ComponentScan("com.iflytek.ext")
+@Configuration
+public class ExtConfig {
+    @Bean
+    public Blue blue() {
+        return new Blue();
+    }
+}
+```
 
+测试类：
+
+```java
+@Test
+    public void test01() {
+        AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(ExtConfig.class);
+
+    }
+```
+
+`BeanFactoryPostProcessor` 它的执行时机是在所有 bean 实例创建之前执行。
+
+从代码的角度看，首先是创建 ioc 容器，在容器创建过程中，跟踪源码你会发现，它有一个 `invokeBeanFactoryPostProcessors(beanFactory)` 这个方法，就是去执行 `BeanFactoryPostProcessors` 方法，那么它是如何找到所有的 BeanFactoryPostProcessors 并执行他们的所有方法？答案就是， 直接在 BeanFactory 中找到所有类型是 `BeanFactoryPostProcessors` 的组件，并执行他们的方法。而且从源码中你会发现这个  `invokeBeanFactoryPostProcessors(beanFactory)` 这个方法是在创建 bean 的方法之前执行。
 
 
 

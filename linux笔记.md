@@ -3774,6 +3774,31 @@ shp
 
 我们前面说过使用 `export 变量名`   使用 export 声明的变量都是环境变量，其实它本质上就是使用 `declare -x 变量名` 将变量声明成环境变量。因为使用 `export 变量名`  比较简单，使用 `declare -x 变量名`  比较不容易记，所以我们都是用 `export 变量名`  去声明一个环境变量。
 
+#### 14、数值运算
+
+在 shell 中你如果要进行数值运算，推荐使用 `$((运算式))` 方式运算
+
+```shell
+[root@hepingfly 桌面]# a=2
+[root@hepingfly 桌面]# b=3
+[root@hepingfly 桌面]# echo $(($a+$b))
+5
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

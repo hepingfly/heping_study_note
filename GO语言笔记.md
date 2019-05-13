@@ -5977,6 +5977,93 @@ func main() {
 > - 代码的复用性提高了
 > - 代码的扩展性和维护性提高了
 
+##### 3、继承深入讨论
+
+**1）、结构体可以使用嵌套匿名结构体的所有字段和方法。即：首字母大写或者小写的字段、方法都可以使用。**
+
+```go
+package main
+import (
+	"fmt"
+)
+type A struct {
+	Name string
+	age int
+}
+func (a *A) SayOk() {
+	fmt.Println("A Say ok", a.Name)
+}
+func (a *A) hello() {
+	fmt.Println("A hello", a.Name)
+}
+type B struct {
+	A
+}
+
+func main() {
+	b := B{}
+	b.A.Name = "Jimmy"
+	b.A.age = 12
+	b.A.SayOk()    // A Say ok Jimmy
+	b.A.hello()    // A hello Jimmy
+}
+```
+
+**2）、匿名结构体字段访问可以简化**
+
+```go
+func main() {
+	b := B{}
+	b.A.Name = "Jimmy"
+	b.A.age = 12
+	b.A.SayOk()    // A Say ok Jimmy
+	b.A.hello()    // A hello Jimmy
+
+	// 上面的写法等价于这种写法
+	b.Name = "Jimmy"
+	b.age = 12
+	b.SayOk() 
+	b.hello()
+	// B 结构体体中没有如上的字段或方法，但是 B 结构体中嵌入了 A 结构体，A 中有，因此编译器在编译的时候，会先在 B 中找，B 中没有再去 B 中嵌入的结构体中找
+}
+```
+
+**3）、当结构体和匿名结构体有相同的字段或者方法时，编译器采用*就近访问原则*访问，如果希望访问匿名结构体的字段和方法，可以通过匿名结构体名来区分。**
+
+```go
+package main
+import (
+	"fmt"
+)
+type A struct {
+	Name string
+	age int
+}
+func (a *A) SayOk() {
+	fmt.Println("A Say ok", a.Name)
+}
+func (a *A) hello() {
+	fmt.Println("A hello", a.Name)
+}
+type B struct {
+	A
+	Name string
+}
+func (b *B) SayOk() {
+	fmt.Println("B Say ok", b.Name)
+}
+
+func main() {
+	b := B{}
+	b.Name = "kimi"   // 因为 B 结构体中有 Name 属性，所以直接给 B 结构体中 Name 属性赋值
+	b.A.Name = "shp"  // 这样就是指定给 A 结构体的 Name 赋值
+	b.SayOk()  // B 结构体有绑定的 SayOk() 方法，因此调用的是 B 结构体的 SayOk() 方法
+	b.hello()  // B 结构体中没有 hello() 方法，因此回去 B 中嵌入的结构体中找 hello() 方法，找到调用 
+}
+```
+
+
+
 
 
 

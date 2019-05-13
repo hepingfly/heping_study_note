@@ -2192,9 +2192,68 @@ public class ExtConfig {
 
 从代码的角度看，首先是创建 ioc 容器，在容器创建过程中，跟踪源码你会发现，它有一个 `invokeBeanFactoryPostProcessors(beanFactory)` 这个方法，就是去执行 `BeanFactoryPostProcessors` 方法，那么它是如何找到所有的 BeanFactoryPostProcessors 并执行他们的所有方法？答案就是， 直接在 BeanFactory 中找到所有类型是 `BeanFactoryPostProcessors` 的组件，并执行他们的方法。而且从源码中你会发现这个  `invokeBeanFactoryPostProcessors(beanFactory)` 这个方法是在创建 bean 的方法之前执行。
 
+#### 2、BeanDefinitionRegistryPostProcessor
 
+```java
+public interface BeanDefinitionRegistryPostProcessor extends BeanFactoryPostProcessor {
+    void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry var1) throws BeansException;
+}
+```
 
+这个 `postProcessBeanDefinitionRegistry` 的执行时机是 在所有 bean 定义信息将要被加载，bean 实例还未创建。
 
+它是优先于 BeanFactoryPostProcessor 执行的，因此我们也可以利用 BeanDefinitionRegistryPostProcessor 给容器中添加一些额外的组件。
+
+```java
+@Component
+public class MyBeanDefinitionRegistryPostProcessor implements BeanDefinitionRegistryPostProcessor {
+
+    /**
+     * beanDefinitionRegistry ：Bean 定义信息的保存中心
+     * 以后 BeanFactory 就是按照 beanDefinitionRegistry 里面保存的每一个 bean 定义信息创建 bean 的实例
+     */
+    public void postProcessBeanDefinitionRegistry(BeanDefinitionRegistry beanDefinitionRegistry) throws BeansException {
+        System.out.println("postProcessBeanDefinitionRegistry...bean 的数量" + beanDefinitionRegistry.getBeanDefinitionCount());
+        BeanDefinitionBuilder beanDefinitionBuilder = BeanDefinitionBuilder.rootBeanDefinition(Blue.class);
+        AbstractBeanDefinition beanDefinition = beanDefinitionBuilder.getBeanDefinition();
+        beanDefinitionRegistry.registerBeanDefinition("hello",beanDefinition);
+    }
+
+    public void postProcessBeanFactory(ConfigurableListableBeanFactory configurableListableBeanFactory) throws BeansException {
+        System.out.println("postProcessBeanFactory...bean 的数量" + configurableListableBeanFactory.getBeanDefinitionCount());
+    }
+```
+
+ExtConfig.java ：
+
+```java
+@ComponentScan("com.iflytek.ext")
+@Configuration
+public class ExtConfig {
+    @Bean
+    public Blue blue() {
+        return new Blue();
+    }
+}
+```
+
+测试类：
+
+```java
+@Test
+    public void test01() {
+        AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(ExtConfig.class);
+
+    }
+```
+
+原理：
+
+> 1、先创建 ioc 容器
+>
+> 2、在 ioc 容器创建过程中会调用 refresh() 方法，在这个方法中会调用 invokeBeanFactoryPostProcessors(beanFactory) 这个方法
+>
+> 3、会从容器中获取所有的 BeanDefinitionRegistryPostProcessor 组件，然后依次触发 postProcessBeanDefinitionRegistry() 方法，再来触发 postProcessBeanFactory() 方法
 
 
 

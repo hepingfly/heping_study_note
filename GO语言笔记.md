@@ -6062,9 +6062,51 @@ func main() {
 }
 ```
 
+**4）、结构体嵌入两个或多个匿名结构体，如两个匿名结构体有相同的字段和方法（同时结构体本身没有同名的字段和方法），在访问时，就必须明确指定匿名结构体名字，否则编译报错**
 
+```go
+package main
+import (
+	"fmt"
+)
+type A struct {
+	Name string
+	age int
+}
+type B struct {
+	Name string
+	Score float64
+}
+type C struct {
+	A
+	B
+}
+func main() {
+	var c C
+	//c.Name = "Jimmy"  这种写法是错误的,这种写法意思就是一开始,我在 C 结构体中找 Name 属性,发现没有,然后看 C 中有没有嵌入结构体,在嵌入结构体中找,发现嵌入的两个结构体中都有 Name 属性,就不知道找哪个了,编译报错
+	c.A.Name = "Jimmy"  // A 和 B 中都有 Name 属性,这里需要明确指定调用哪个结构体中的属性
+}
+```
 
+**5）、如果一个 struct 嵌套了一个有名结构体，这种模式就是*组合*，如果是组合关系，那么在访问组合的结构体字段或方法时，就必须带上结构体的名字。**
 
+```go
+package main
+import (
+	"fmt"
+)
+type A struct {
+	Name string
+	age int
+}
+type D struct {
+	a A   // 嵌套有名结构体
+}
+func main() {
+	var d D
+	d.a.Name = "kimi"  // 有名结构体必须要通过结构体的名字来调用
+}
+```
 
 
 

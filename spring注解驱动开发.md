@@ -2255,6 +2255,47 @@ public class ExtConfig {
 >
 > 3、会从容器中获取所有的 BeanDefinitionRegistryPostProcessor 组件，然后依次触发 postProcessBeanDefinitionRegistry() 方法，再来触发 postProcessBeanFactory() 方法
 
+#### 3、ApplicationListener 的用法
+
+`ApplicationListener` 的作用是用来监听容器中发布的事件
+
+```java
+interface ApplicationListener<E extends ApplicationEvent> extends EventListener
+// 这个 ApplicationListener 是一个接口，如果我们要写一个监听器，就要写一个这个接口的实现类，泛型就是要监听的事件(也就是说去监听 ApplicationEvent 及其子事件)
+```
+
+因此我们可以进行事件驱动模型开发。步骤：
+
+> 1）、写一个监听器来监听某个事件（`ApplicationEvent` 及其子类）
+>
+> 2）、把监听器加入到容器中
+>
+> 3)、只要容器中有相关事件发布，我们就能监听到这个事件
+>
+> ​		① 比如说 `ContextRefreshedEvent` ：容器刷新完成，会发布这个事件
+>
+> ​		② 比如说 `ContextClosedEvent` ：容器关闭会发布这个事件
+>
+> 4）、发布一个事件
+>
+> ​	`applicationContext.publishEvent()`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -6108,6 +6108,53 @@ func main() {
 }
 ```
 
+**6）、嵌套匿名结构体后，也可以在创建结构体变量时，直接指定各个匿名结构体字段的值**
+
+```go
+package main
+import (
+	"fmt"
+)
+type Goods struct {
+	Name string
+	price float64
+}
+
+type Brand struct {
+	Name string
+	Address string
+}
+
+type TV struct {
+	Goods
+	Brand
+}
+type TV2 struct {
+	*Goods    // 也可以把匿名结构体的指针嵌套在结构体中
+	*Brand
+}
+
+
+func main() {
+	tv := TV{Goods{"手机",4000.0},Brand{"iphone","美国"}}   // 创建结构体的时候直接指定匿名结构体字段的值
+	tv2 := TV{
+		Goods{
+			Name:"手机",
+			price:3000,
+		},
+		Brand{
+			Name:"华为",
+			Address:"中国",
+		},
+	}
+	fmt.Println(tv)  // {{手机 4000} {iphone 美国}}
+	fmt.Println(tv2)  // {{手机 3000} {华为 中国}}
+
+	tv3 := TV2{ &Goods{"手机",4000.0}, &Brand{"iphone","美国"}}
+	fmt.Println((*tv3.Goods).Name)   // 手机
+}
+```
+
 
 
 

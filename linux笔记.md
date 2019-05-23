@@ -3853,7 +3853,30 @@ shp
 |        |                                                              |
 |        |                                                              |
 
+```shell
+[root@hepingfly hepingfly]# grep --color=auto "a*" bb.txt 
+afss
+fd           # 我想在 bb.txt 中匹配包含 a 字符的行，这种写法是由问题的，下面的写法才是正确的
+bsd			 # 这种写法会把所有的都匹配到
+cdsa
+[root@hepingfly hepingfly]# grep --color=auto "aa*" bb.txt 
+afss
+cdsa     # 匹配含有一个 a 或多个 a
 
+[root@hepingfly hepingfly]# grep --color=auto "afs*s" bb.txt 
+afss   # af 和 s 之间 s 出现 0 次或多次(afs、afsss、afssss 等会匹配到)
+
+[root@hepingfly hepingfly]# grep "c..a" bb.txt 
+cdsa     # 匹配 c 和 a 中间有两个字符
+```
+
+**小说明：**
+
+> 在正则中，任何字符后面加 `*` 去匹配，其实是不起作用的，它会匹配所有的内容。比如说：`a*`  『*』在正则中表示前一个字符匹配 0 次或多次，也就是说 a 可以出现 0 次，那么就把所有的内容都匹配到了。应该使用 
+>
+> 『aa*』 去匹配 a 字符。
+>
+> 在正则中 『.*』 表示匹配所有内容
 
 
 

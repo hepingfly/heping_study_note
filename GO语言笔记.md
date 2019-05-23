@@ -6155,6 +6155,80 @@ func main() {
 }
 ```
 
+##### 4、多重继承
+
+> 如果一个 struct 嵌套了多个匿名结构体，那么该结构体可以直接访问嵌套的匿名结构体的字段和方法，从而实现了多重继承。
+>
+> 如果嵌入的多个匿名结构体有相同的字段和方法名（比如，A 结构体的字段 B 中也有），这时候在访问的时候就需要指定结构体的名字来指定访问哪个结构体中的字段。
+>
+> 为了保证代码的简洁性，建议尽量不要使用多重继承
+
+#### 五、接口
+
+##### 1、接口入门
+
+```go
+package main
+import (
+	"fmt"
+)
+// 声明一个接口
+type Usb interface {
+	// 声明了两个没有实现的方法
+	Start()
+	Stop()
+}
+type Phone struct {
+
+}
+// 让 Phone 实现 usb 接口的方法
+func (p Phone) Start() {
+	fmt.Println("手机开始工作")
+}
+func (p Phone) Stop() {
+	fmt.Println("手机停止工作")
+}
+type Caramer struct {
+
+}
+
+// 让 Caramer 实现 usb 接口的方法
+func (c Caramer) Start() {
+	fmt.Println("相机开始工作")
+}
+func (c Caramer) Stop() {
+	fmt.Println("相机停止工作")
+}
+
+// 计算机
+type Computer struct {
+
+}
+
+// 编写一个 Working 方法，接收一个 Usb 接口类型的变量
+// 只要实现了 Usb 接口（所谓实现 Usb 接口，就是指实现了 Usb 接口声明的所有方法）
+func (c Computer) Working(usb Usb) {
+	// 通过 usb 接口变量来调用 Start 和 Stop 方法
+	usb.Start()
+	usb.Stop()
+}
+
+func main() {
+	// 创建结构体变量
+	computer := Computer{}
+	phone := Phone{}
+	caramer := Caramer{}
+	computer.Working(phone)
+	computer.Working(caramer)
+}
+```
+
+
+
+
+
+
+
 
 
 

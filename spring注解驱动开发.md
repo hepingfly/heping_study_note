@@ -2280,6 +2280,122 @@ interface ApplicationListener<E extends ApplicationEvent> extends EventListener
 >
 > ​	`applicationContext.publishEvent()`
 
+#### 4、ApplicationListener 原理
+
+```java
+@Component
+public class MyApplicationListener implements ApplicationListener<ApplicationEvent> {
+
+    /**
+     * 当容器中发布此事件，方法得到触发
+     * @param applicationEvent
+     */
+    public void onApplicationEvent(ApplicationEvent applicationEvent) {
+        System.out.println("收到事件：" + applicationEvent);
+    }
+}
+```
+
+```java
+@Test
+    public void test01() {
+        AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(ExtConfig.class);
+        // 发布事件
+        ctx.publishEvent(new ApplicationEvent(new String("我发布的事件")) {
+        });
+        ctx.close();
+    }
+```
+
+> 1、ContextRefreshedEvent 事件：
+>
+> ① 首先是容器创建对象，调用 refresh() 方法
+>
+> ② 在 refresh() 方法中，会调用 finishRefresh() 方法，容器刷新完成
+>
+> ③ 在  finishRefresh() 方法中，会调用 `publishEvent((ApplicationEvent)(new ContextRefreshedEvent(this)))` 方法，这个方法用来发布事件：
+>
+> 事件的发布流程：
+>
+> 1️⃣ 获取事件的多播器（派发器）  `getApplicationEventMulticaster()`，为了把这个事件发送给多个监听器让他们同时感知。
+>
+> 2️⃣ `multicastEvent()`  调用这个方法去派发事件。怎么派发的呢？看下面一步：
+>
+> 3️⃣ 先获取到所有的 ApplicationListener ，然后遍历这个 listener
+>
+> ```java
+> Executor executor = this.getTaskExecutor();
+> // 遍历的时候，如果有 Executor，可以支持使用 Executor 进行异步派发
+>             if(executor != null) {
+>                 executor.execute(new Runnable() {
+>                     public void run() {
+>                         SimpleApplicationEventMulticaster.this.invokeListener(listener, event);
+>                     }
+>                 });
+>             } else {
+>                 // 否则同步的方式直接执行 listener
+>                 this.invokeListener(listener, event);
+>             }
+>
+> // 这个方法 invokeListener 它还回去调用 doInvokeListener
+>
+>     private void doInvokeListener(ApplicationListener listener, ApplicationEvent event) {
+>         try {
+>             // 在这个方法里就通过传入的 listener 去回调 onApplicationEvent 方法
+>             listener.onApplicationEvent(event);
+>         } catch (ClassCastException var6) {
+>         }
+>     }
+> }
+> ```
+>
+> 
+>
+> 事件多播器（派发器）：
+>
+>   ① 容器创建对象，调用 refresh() 方法
+>
+>  ② 在 refresh() 方法中，会调用 `initApplicationEventMulticaster()` 方法，去初始化 `ApplicationEventMulticaster` 初始化逻辑是下面这样的：
+>
+> ```java
+> protected void initApplicationEventMulticaster() {
+>         ConfigurableListableBeanFactory beanFactory = this.getBeanFactory();
+>         if(beanFactory.containsLocalBean("applicationEventMulticaster")) {
+>             this.applicationEventMulticaster = (ApplicationEventMulticaster)beanFactory.getBean("applicationEventMulticaster", ApplicationEventMulticaster.class);
+>         } else {
+>             this.applicationEventMulticaster = new SimpleApplicationEventMulticaster(beanFactory);
+>             beanFactory.registerSingleton("applicationEventMulticaster", this.applicationEventMulticaster);
+>         }
+>
+>     }
+> ```
+>
+> 1️⃣ 先去容器中找看有没有 `id = "applicationEventMulticaster"` ,如果有直接通过 getBean 从容器中获取这个组件
+>
+> 2️⃣ 如果没有，就去 `new SimpleApplicationEventMulticaster()` ，然后把这个 bean 注册到容器中去。这样我们就可以在其他组件要派发事件，自动注入这个 `applicationEventMulticaster`
+>
+> 
+>
+> 怎么知道容器中有哪些监听器：
+>
+>   ① 容器创建对象，调用 refresh() 方法
+>
+>  ② 在这个 refresh() 方法中，会有一个 `registerListeners()` 方法，去注册监听器，这个方法的具体作用就是：从容器中拿到所有的监听器，把他们注册到 `applicationEventMulticaster` 中去。
+>
+> ```java
+>     protected void registerListeners() {
+>         Iterator var1 = this.getApplicationListeners().iterator();
+>
+>         while(var1.hasNext()) {
+>             ApplicationListener<?> listener = (ApplicationListener)var1.next();
+>             // 将 listener 注册到 applicationEventMulticaster 中
+>             this.getApplicationEventMulticaster().addApplicationListener(listener);
+>         }
+>     }
+> ```
+>
+> 
+
 
 
 

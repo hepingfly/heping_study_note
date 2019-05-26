@@ -3879,11 +3879,57 @@ cdsa     # 匹配 c 和 a 中间有两个字符
 >
 > 在正则中 『.*』 表示匹配所有内容
 
+#### 2、字符串处理之 cut
 
+前面我们说了 grep 这个命令，这个命令是把你要查找的字符串所在行都返回出来。
 
+cut 为列提取命令：
 
+> `cut [选项] 文件名`
+>
+> 选项：
+>
+> ​	`-f 列号`  ：  提取第几列
+>
+> ​	`-d 分隔符` ： 按照指定分隔符分割列
+>
+> ​	`-c 字符范围`  ： 不依赖分隔符来区分列。而是通过字符范围（行首为 0） 来进行字段提取。『n- 』表示从第 n 个字符到行尾；『n-m』从第 n 个字符到第 m 个字符；『-m』 表示从第 1 个字符到第 m 个字符。
 
+**注：**
 
+cut 命令默认分隔符是制表符，也就是 tab 键。
+
+```shell
+[root@hepingfly hepingfly]# vim student.txt
+id      name    age
+1       shp     18
+2       jimmy   20
+3       kimi    40
+
+[root@hepingfly hepingfly]# cut -f 2 student.txt        提取第 2 列的内容
+name
+shp
+jimmy
+kimi
+
+[root@hepingfly hepingfly]# cut -f 2,3 student.txt      提取第 2 列和第 3 列
+name	age                # 如果想提取多列直接用逗号分隔即可
+shp	18
+jimmy	20
+kimi	40
+
+[root@hepingfly hepingfly]# vim person.txt
+id,name,age
+1,shp,10
+2,jimmy,20
+3,kimi,30
+
+[root@hepingfly hepingfly]# cut -f 1,3 -d "," person.txt         指定按照 "," 来分割
+id,age
+1,10
+2,20
+3,30
+```
 
 
 

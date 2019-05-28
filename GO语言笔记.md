@@ -6245,7 +6245,63 @@ func main() {
 >
 > 2、Golang 中的接口，不需要显示的实现。只要一个变量，含有接口类型中的所有方法，那么这个变量就实现了这个接口。因此 Golang 中没有 implement 这样的关键字
 
+##### 3、接口的注意事项的细节
 
+1）、接口本身不能创建实例，但是可以指向一个实现了该接口的自定义类型的变量(实例)
+
+```java
+package main
+import (
+	"fmt"
+)
+// 定义一个接口
+type A interface {
+	Say()
+}
+type Student struct {
+
+}
+func (stu Student) Say() {
+	fmt.Println("hello")
+}
+func main() {
+	var stu Student   // 结构体变量，重写了 Say() 方法，它就实现了 A 这个接口
+	var a A = stu  // 接口可以指向一个实现了该接口的自定义类型变量(实例)
+	a.Say()  // hello
+}
+```
+
+2）、接口中所有的方法都没有方法体，即都是没有实现的方法
+
+3）、在 Golang 中，一个自定义类型需要将某个接口的所有方法都实现，我们说这个自定义类型实现了该接口
+
+4）、一个自定义类型只有实现了某个接口，才能将该自定义类型的实例（变量）赋给接口类型
+
+5）、只要是自定义数据类型，就可以实现接口，不仅仅是结构体类型
+
+```go
+package main
+import (
+	"fmt"
+)
+
+// 定义一个接口
+type A interface {
+	Say()
+}
+
+// 自定义一个 int 类型变量
+type Integer int 
+// 重写 Say() 方法就等于实现了 A 接口
+func (i Integer) Say() {
+	fmt.Println("hello",i)
+}
+func main() {
+	var i Integer = 1
+	var a A = i
+	a.Say()  // hello 1
+}
+```
 
 
 

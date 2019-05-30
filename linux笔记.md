@@ -3995,29 +3995,92 @@ Use%
 | A~B   | 判断字符串 A 中是否包含能匹配 B 表达式的子字符串             |
 | A!~B  | 判断字符串 A 中是否不包含能匹配 B 表达式的子字符串           |
 
+BEGIN
+
+> BEGIN 是 awk 的保留字，是一种特殊的条件类型。BEGIN 的执行时机是 "在 awk 程序一开始时，尚未读取任何数据之前执行"。一旦 BEGIN 后的动作执行一次，当 awk 开始从文件中读取数据，BEGIN 的条件就不再成立，所以 BEGIN 定义的动作只能被执行一次。
+
+```shell
+[root@hepingfly hepingfly]# awk 'BEGIN{print "hello"} {print $2 "\t" $3}' student.txt 
+hello
+name	age
+shp	18
+jimmy	20
+kimi	40
+```
+
+EDN
+
+> END 也是 awk 的保留字，不过刚好和 BEGIN 相反。END 是在 awk 程序处理完所有程序，即将结束时执行。END 后的动作只在程序结束时执行一次。
+
+```shell
+[root@hepingfly hepingfly]# awk 'END{print "hello"} {print $2 "\t" $3}' student.txt 
+name	age
+shp	18
+jimmy	20
+kimi	40
+hello
+```
+
+awk 使用举例：
+
+```shell
+[root@hepingfly hepingfly]# grep -v "age" student.txt      目的是把标题行去掉
+1	shp	18
+2	jimmy	20
+3	kimi	40
+[root@hepingfly hepingfly]# grep -v "age" student.txt |awk '$3>18{print $3}'
+20											# 找出第三列大于 18 的然后大于出来
+40
+```
 
 
 
+### 二十一、启动引导与修复
 
+#### 1、系统运行级别
 
+Linux 默认有 7 个运行级别
 
+| 运行级别 | 含义                               |
+| -------- | ---------------------------------- |
+| 0        | 关机                               |
+| 1        | 单用户模式                         |
+| 2        | 不完全的命令行模式，不含 NFS 服务  |
+| 3        | 完全的命令行模式，就是标准字符界面 |
+| 4        | 系统保留                           |
+| 5        | 图形模式                           |
+| 6        | 重启动                             |
 
+**runlevel 命令**
 
+> 在 linux 系统中可以使用 runlevel 命令来查看系统的运行级别
 
+```shell
+[root@hepingfly hepingfly]# runlevel
+N 5    # N 代表进入这个级别前，上一个是哪个级别。 5 代表当前级别
 
+# 如果是由字符界面进入图形界面，查询结果应该是这样
+[root@hepingfly hepingfly]# runlevel
+3 5     #代表是由 3 级别进入 5 级别
+```
 
+**手动修改运行级别**
 
+> `init 5`                 把当前运行级别改成 5
 
+**系统默认运行级别**
 
+> `/etc/inittab`      默认级别的配置文件，进去就可以修改默认级别
+>
 
+```shell
+[root@hepingfly hepingfly]# vim /etc/inittab
+id:5:initdefault:
+```
 
+**/etc/rc.d/rc.local 文件**
 
-
-
-
-
-
-
+> 这个配置文件会在用户登录之前读取，这个文件中写入什么命令，在每次系统启动时都会执行一次。也就是说，如果有任何需要在系统启动就运行的工作，只需要写入 `/etc/rc.d/rc.local` 这个配置文件即可
 
 
 

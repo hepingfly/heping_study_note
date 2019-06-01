@@ -428,7 +428,152 @@ public class Son extends Father {
 
 
 
+### 四、方法的参数传递机制
 
+方法的参数传递机制：
+
+> - 形参是基本数据类型
+>   - 传递的是数据值
+> - 形参是引用数据类型
+>   - 传递的是地址值
+>   - 特殊类型：String 、包装类等对象不可变性
+
+```java
+package arg;
+
+import java.util.Arrays;
+
+public class Exam4 {
+
+    public static void change(int j, String s, Integer n, int[] a, MyData m) {
+        j += 1;
+        s += "world";
+        n += 1;
+        a[0] += 1;
+        m.a += 1;
+    }
+
+    public static void main(String[] args) {
+        int i = 1;
+        String str = "hello";
+        Integer num = 200;
+        int[] arr = {1,2,3,4,5};
+        MyData m = new MyData();
+        change(i,str,num,arr,m);
+        System.out.println("i=" + i);
+        System.out.println("str=" + str);
+        System.out.println("num=" + num);
+        System.out.println("arr=" + Arrays.toString(arr));
+        System.out.println("m.a=" + m.a);
+    }
+
+}
+class MyData {
+    int a = 10;
+}
+
+//i=1
+//str=hello
+//num=200
+//arr=[2, 2, 3, 4, 5]
+//m.a=11
+
+```
+
+
+
+![方法的参数传递机制](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E6%96%B9%E6%B3%95%E5%8F%82%E6%95%B0%E4%BC%A0%E9%80%92%E6%9C%BA%E5%88%B6.png?q-sign-algorithm=sha1&q-ak=AKIDo7jg9e9W1Y7qjr3zktqcrgP3x1iQDx8k&q-sign-time=1559374592;1559378192&q-key-time=1559374592;1559378192&q-header-list=&q-url-param-list=&q-signature=4983bc6319296b8b38eddd45fb695afd5e27bf0f&x-cos-security-token=31f9fa2571e334d56ea72c6ee061bc6bae9c88e110001)
+
+
+
+> 我们都知道你声明一个变量，这个变量是存在栈空间的，你在方法中声明的变量，肯定都是局部变量
+>
+> 局部变量按照方法在栈空间中分配区域。首先看 main 方法栈中的局部变量，int i = 1，在 main 方法栈中，会有一个变量 i ，这个 i 是 int 类型的，然后把 1 存入栈中。
+>
+>  String str = "hello"  ，在 main 方法栈中会有一个变量 str ，这个 str 是 String 类型，因为 String 是引用类型，并且这个 str 的值是一个字符串常量 hello ，所以会把这个 hello 存到常量池中，在常量值中开辟一块空间存 hello，变量 str 在栈中，栈空间具体存的是 hello 的地址值，假设是 0x123，通过这个地址值指向常量池中的 hello。
+>
+> Integer num = 200，在 main 方法栈中会有一个变量 num ，这个变量是 Integer 类型 ，Integer 是包装类，所以会在堆空间中开辟一块空间，把 200 存在堆空间中，然后栈中变量 num 存这个 200 在堆空间的地址，假设叫 0x9090，通过这个地址指向堆空间中的 200
+>
+> int[] arr = {1,2,3,4,5}    ，在 main 方法栈中会有一个变量 arr，这个变量是 int 类型的数组， 因为 arr 是数组类型，所以在堆空间中也会开辟一块空间去存储数组中的元素，因此 main 方法栈中 arr 存的是数组的首地址值。通过这个首地址值指向堆空间中的数组
+>
+> MyData m = new MyData()，  在 main 方法栈中会有一个变量 m，这个 m 是一个对象，所以会在堆空间中开辟一块空间去存储这个对象，这个对象有一个成员变量（属性）即 a = 10，在 main 方法栈中 m 这个变量存储对象的地址值，通过地址值指向堆空间中的对象
+>
+> change(i,str,num,arr,m)    调用这个方法去传递参数，基本数据类型传递的是数据值，引用类型传递的是地址值。所以形参的这几个变量会在 change 栈中被声明，然后在栈空间中存相对应的值。i 是基本数据类型，栈空间中存传过来的 1，str 是引用数据类型，栈空间中存传过来的地址值，同样 num  arr m 都是引用类型，在栈空间中存的都是传过来的地址值。
+
+重点解释一下下面的代码：
+
+```java
+public static void change(int j, String s, Integer n, int[] a, MyData m) {
+        s += "world";
+        n += 1;
+    }
+
+// 这里的 s 是 String 类型，n 是 Integer 类型，包装类，String 类型和包装类都是不可变的，我们知道这里的 s 接收到的是一个地址，指向常量池中的 hello，但是我们做了 s+="world" ，因为 String 是不可变的，所以它又会在常量池中开辟一块空间存 "helloworld" 这个常量，然后让 s 指向 "helloworld" 这个常量，包装类 n 同理，会在堆空间中开辟一块空间存 201 ，然后让 n 执行这个 201
+```
+
+
+
+### 五、成员变量和局部变量
+
+局部变量与成员变量的区别：
+
+> - 声明的位置
+>   - 局部变量：方法体中，形参，非静态代码块中
+>   - 成员变量：类中方法外
+>     - 类变量：有 static 修饰
+>     - 实例变量：没有 static 修饰
+> - 修饰符
+>   - 局部变量：只能用 final 修饰
+>   - 成员变量：public  protected   private   final   static   volatile   transient
+> - 值存储的位置
+>   - 局部变量：栈
+>   - 实例变量：堆
+>   - 类变量：方法区
+> - 作用域
+>   - 局部变量：从声明处开始，到所属的大括号结束
+> - 生命周期
+>   - 局部变量：每一个线程，每一次调用执行都是新的生命周期
+>   - 实例变量：随着对象的创建而初始化，随着对象的被回收而消亡，每一个对象的实例变量是独立的
+>   - 类变量：随着类的初始化而初始化，随着类的卸载而消亡，该类的所有对象的类变量是共享的
+
+堆、栈、方法区：
+
+> 堆（Heap）：此内存区域的唯一目的就是存放对象实例，几乎所有的对象实例都在这里分配内存。这一点在 Java 虚拟机规范中的描述是：所有的对象实例以及数组都要在堆上分配
+>
+> 栈（Stack）：虚拟机栈。虚拟机栈用于存储局部变量表等。局部变量表存放了编译期可只长度的各种基本数据类型（byte、short、int、long、float、double、char、boolean）、对象引用。方法执行完自动释放。
+>
+> 方法区（Method Area）：用于存储已被虚拟机加载的类信息、常量、静态变量、即时编译器编译后的代码等数据
+
+```java
+public class Exam5 {
+    static int s;  // 类变量
+    int i;  // 成员变量，实例变量
+    int j;  // 成员变量，实例变量
+    {
+        int i = 1;  // i 局部变量
+        i++;
+        j++;
+        s++;
+    }
+    public void test(int j) {  // 形参 j 局部变量
+        j++;
+        i++;
+        s++;
+    }
+
+    public static void main(String[] args) { // 形参 args 局部变量
+        Exam5 obj1 = new Exam5();  // obj1 局部变量
+        Exam5 obj2 = new Exam5();  // obj2 局部变量
+        obj1.test(10);
+        obj1.test(20);
+        obj2.test(30);
+        System.out.println(obj1.i + "," + obj1.j + "," + obj1.s);
+        System.out.println(obj2.i + "," + obj2.j + "," + obj2.s);
+    }
+}
+```
+
+![成员变量与局部变量](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E6%88%90%E5%91%98%E5%8F%98%E9%87%8F%E4%B8%8E%E5%B1%80%E9%83%A8%E5%8F%98%E9%87%8F.png?q-sign-algorithm=sha1&q-ak=AKIDE8hlA4YC5DbJgZJdyyrsYFfZGUlcjao1&q-sign-time=1559396457;1559400057&q-key-time=1559396457;1559400057&q-header-list=&q-url-param-list=&q-signature=25ea4096061f0ba9f6bafa58cdf029bd7c281bac&x-cos-security-token=d27694467044aa6585d3089afad2123fa57bfc2410001)
 
 
 

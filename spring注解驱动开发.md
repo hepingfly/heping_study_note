@@ -2398,15 +2398,81 @@ public class MyApplicationListener implements ApplicationListener<ApplicationEve
 
 
 
+## 二、web
+
+### 1、servlet3.0 简介测试
+
+首先说 servlet3.0 需要 tomcat7 及以上版本支持
+
+之前我们写一个 servlet 、listener、filter 都需要在 web.xml 中去配置，现在使用注解的方式去解决
+
+```java
+@WebServlet(value = {"/hello","hi"})  // 标了这个注解就相当于在 web.xml 中注册了这个 servlet
+public class HelloServlet extends HttpServlet {
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        resp.getWriter().write("hello");
+    }
+}
+// 同样可以使用 @WebListener、@WebFilter   去注册 listener 和 filter
+```
+
+```jsp
+<%@ page contentType="text/html;charset=UTF-8" language="java" %>
+<html>
+  <head>
+    <title>$Title$</title>
+  </head>
+  <body>
+      <a href="/hello">跳转</a>     <!-- 我发 hello 请求的时候就会被 servlet 拦截 -->
+  </body>
+</html>
+```
 
 
 
+### 2、ServletContainerInitializer
+
+**Shared libraries（共享库）/ runtimes pluggability（运行时插件能力）**
+
+> 1、Servlet 容器启动会扫描，当前应用里面每一个 jar 包的 ServletContainerInitializer 的实现
+>
+> 2、提供 ServletContainerInitializer 的实现类，必须绑定在 `META-INF/services/javax.servlet.ServletContainerInitializer` 中，文件内容就是 ServletContainerInitializer 实现类的全类名
+>
+> 总结：
+>
+> servlet 容器在启动应用的时候，会扫描当前应用每一个 jar 包里面 `META-INF/services/javax.servlet.ServletContainerInitializer`  指定的实现类，启动并运行这个实现类的方法
 
 
 
+javax.servlet.ServletContainerInitializer 文件（这个文件是在 META-INF/services/ 文件夹下）
 
+```
+com.iflytek.servlet.MyServletContainerInitializer
+// 这样 servlet 容器一启动的时候就会找到这个实现类并运行这个实现类的方法
+```
 
+```java
+/**
+ * servlet 容器启动的时候会将@HandlesTypes 指定的这个类型下面的子类（实现类，子接口等）传递过来
+ * value 值是你感兴趣的类型（会把你这个类型下的所有子类都传入过来）
+ */
+@HandlesTypes(value = {HelloService.class})
+public class MyServletContainerInitializer implements ServletContainerInitializer {
 
+    /**
+     * 应用启动的时候会运行 onStartup 方法
+     * Set<Class<?>> set ：感兴趣的类型的所有子类型
+     * servletContext 代表当前 web 应用的 servletContext 对象，一个 web 应用对应一个 servletContext
+     */
+    @Override
+    public void onStartup(Set<Class<?>> set, ServletContext servletContext) throws ServletException {
+        // 这里的 set 集合里你可以拿到，你在 @HandlesTypes 注解的 value 中写的感兴趣类型的所有子类型
+    }
+}
+```
+
+> 这样 servlet 容器启动的时候就会去找每个 jar 包中的 javax.servlet.ServletContainerInitializer 文件，当前这个文件中写的是 `com.iflytek.servlet.MyServletContainerInitializer`，那么就会去找这个实现类，并执行这个实现类中的方法。
 
 
 

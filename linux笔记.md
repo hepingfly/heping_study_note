@@ -4084,6 +4084,85 @@ id:5:initdefault:
 
 
 
+### 二十二、服务管理
+
+#### 1、服务分类
+
+> - RPM 包安装的服务
+>   - 独立的服务
+>     - 就是独立启动的意思，这类型的服务可以自行启动，而不用依赖其他的管理服务。不依赖其他的管理服务，那么当客户端请求访问时，独立的服务响应请求更快速。Linux 中大多数服务都是独立服务。
+>   - 基于 xinetd 的服务
+>     - 这种服务就不能独立启动了，而是要依靠管理服务来调用这种服务。这个负责管理的服务就是 xinetd 服务，xinetd 服务时系统的超级守护进程。xinetd 服务的作用就是管理不能独立启动的服务。当有客户端请求时，会先请求 xinetd 服务，由 xinetd 服务区唤醒相应的服务。当客户端请求结束时，被唤醒的服务会关闭并释放资源。这样做的好处就是只需要持续启动 xinetd 服务，而其它基于 xinetd 服务只有需要时才会启动，不会占用过多的服务器资源。但是这种服务由于在有客户端请求时才会被唤醒，所以响应时间相对较慢。
+> - 源码包安装的服务
+
+#### 2、独立服务管理
+
+1）、独立服务的**启动管理**
+
+> ① 使用 /etc/init.d/目录中的启动脚本启动服务
+>
+> ```shell
+> /etc/init.d/network start
+> ```
+>
+> ② 使用 service 命令来启动服务
+>
+> ```shell
+> service 独立服务名 start|stop|restart
+>
+> # service 命令也是去调用 /etc/init.d/ 下的服务去启动的
+> ```
+>
+> 
+
+2）、独立服务的**自启动管理**
+
+1️⃣ 使用 `chkconfig` 自启动管理命令
+
+> `chkconfig [--level 运行级别] [独立服务名] [on|off]` 
+>
+> 选项：
+>
+> ​	`--levle` ：设定在哪个运行级别中开机自启动（on），或者关闭自启动（off）
+
+```shell
+[root@hepingfly init.d]# chkconfig --level 2345 network on
+
+# --level 2345 可以省略不写，默认就是 2345
+```
+
+2️⃣  修改 `/etc/rc.d/rc.local` 文件，设置服务自启动
+
+```shell
+vim /etc/rc.d/rc.local
+
+#!/bin/sh
+#
+# This script will be executed *after* all the other init scripts.
+# You can put your own initialization stuff in here if you don't
+# want to do the full Sys V style init stuff.
+
+touch /var/lock/subsys/local
+# 设置服务启动命令，这样开机的时候就会自动执行这条命令
+/etc/init.d/network start
+```
+
+3️⃣ 使用 `ntsysv` 命令管理自启动
+
+> 你敲完这个命令，会出来一个图形界面，通过这个图形界面你可以控制服务的自启动。
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

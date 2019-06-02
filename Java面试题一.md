@@ -482,7 +482,7 @@ class MyData {
 
 
 
-![方法的参数传递机制](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E6%96%B9%E6%B3%95%E5%8F%82%E6%95%B0%E4%BC%A0%E9%80%92%E6%9C%BA%E5%88%B6.png?q-sign-algorithm=sha1&q-ak=AKIDo7jg9e9W1Y7qjr3zktqcrgP3x1iQDx8k&q-sign-time=1559374592;1559378192&q-key-time=1559374592;1559378192&q-header-list=&q-url-param-list=&q-signature=4983bc6319296b8b38eddd45fb695afd5e27bf0f&x-cos-security-token=31f9fa2571e334d56ea72c6ee061bc6bae9c88e110001)
+![方法的参数传递机制](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E6%96%B9%E6%B3%95%E5%8F%82%E6%95%B0%E4%BC%A0%E9%80%92%E6%9C%BA%E5%88%B6.png?q-sign-algorithm=sha1&q-ak=AKIDzfa5qlmrO29aFvdZ6anQcvW0y2oiOPvR&q-sign-time=1559453318;1559456918&q-key-time=1559453318;1559456918&q-header-list=&q-url-param-list=&q-signature=75648ddf2a6c2b91d3412f7e626e6816200a2ff7&x-cos-security-token=2193f0a26c7a3dc3f3f654b1c630935cd6d03e7b10001)
 
 
 
@@ -573,7 +573,37 @@ public class Exam5 {
 }
 ```
 
-![成员变量与局部变量](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E6%88%90%E5%91%98%E5%8F%98%E9%87%8F%E4%B8%8E%E5%B1%80%E9%83%A8%E5%8F%98%E9%87%8F.png?q-sign-algorithm=sha1&q-ak=AKIDE8hlA4YC5DbJgZJdyyrsYFfZGUlcjao1&q-sign-time=1559396457;1559400057&q-key-time=1559396457;1559400057&q-header-list=&q-url-param-list=&q-signature=25ea4096061f0ba9f6bafa58cdf029bd7c281bac&x-cos-security-token=d27694467044aa6585d3089afad2123fa57bfc2410001)
+![成员变量与局部变量](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E6%88%90%E5%91%98%E5%8F%98%E9%87%8F%E4%B8%8E%E5%B1%80%E9%83%A8%E5%8F%98%E9%87%8F.png?q-sign-algorithm=sha1&q-ak=AKIDYcwuCLsfwn8bg40Lrc0gzBQhwHJpgds3&q-sign-time=1559453399;1559456999&q-key-time=1559453399;1559456999&q-header-list=&q-url-param-list=&q-signature=29c4580a03981cd11ed05bb326037993a0c66daf&x-cos-security-token=71a84ca843779f18de9101a827afc99d0879d05b10001)
+
+
+
+### 六、SpringMVC 解决 POST 、GET 请求中文乱码问题
+
+1）、解决 POST 请求乱码问题
+
+通过在 web.xml 配置字符编码过滤器
+
+```xml
+<filter>
+		<filter-name>characterEncodingFilter</filter-name>
+		<filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+		<init-param>
+			<!--要使用的字符集，一般我们使用UTF-8(保险起见UTF-8最好)-->
+            <!-- 这里其实就是给上面的 CharacterEncodingFilter 中的属性设置值， encoding 是这个类的属性-->
+			<param-name>encoding</param-name>
+			<param-value>UTF-8</param-value>
+		</init-param>
+	</filter>
+	<filter-mapping>
+		<filter-name>characterEncodingFilter</filter-name>
+		<!--这里拦截所有的请求 -->
+		<url-pattern>/*</url-pattern>
+	</filter-mapping>
+```
+
+2）、解决 GET 请求乱码问题
+
+通过修改 tomcat 的配置文件 server.xml 中，第一个 Connector 标签，加上 `URIEncoding="UTF-8"` 即可
 
 
 

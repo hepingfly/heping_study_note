@@ -6303,9 +6303,114 @@ func main() {
 }
 ```
 
+6）、一个自定义类型可以实现多个接口
 
+```go
+package main
+import (
+	"fmt"
+)
 
+// 定义一个接口
+type A interface {
+	Say()
+}
+type B interface {
+	Hello()
+}
 
+// 我想让这个 Monster 既实现 A 接口又实现 B 接口
+type Monster struct {
+
+}
+func (monster Monster) Hello() {
+	fmt.Println("monster hello")
+}
+func (monster Monster) Say() {
+	fmt.Println("monster hi")
+}
+
+func main() {
+	// 声明一个 Monster 结构体
+	var monster Monster
+	var a A = monster
+	var b B = monster
+	a.Say()   // monster hi
+	b.Hello()  // monster hello
+}
+```
+
+7）、Golang 接口中不能有任何的变量
+
+8）、一个接口（比如 A 接口）可以继承多个别的接口（比如 B、C 接口），这时如果要实现 A 接口，也必须将 B、C 接口的方法也全部实现 
+
+```go
+package main
+import (
+	"fmt"
+)
+type B interface {
+	test01()
+}
+type C interface {
+	test02()
+}
+// A 接口继承了 B 接口和 C 接口
+type A interface {
+	B
+	C
+	test03()
+}
+// 如果你要实现 A 接口，意味着你要把 B 接口和 C 接口里面的方法和 A 接口自己的方法都要一起实现
+type Student struct {
+
+}
+func (stu Student) test01() {
+	fmt.Println("test01")
+}
+func (stu Student) test02() {
+	fmt.Println("test02")
+}
+func (stu Student) test03() {
+	fmt.Println("test03")
+}
+func main() {
+	var stu Student;
+	var a A = stu;
+	a.test03()  // test03
+	a.test02()  // test02
+}
+```
+
+9）、interface 类型默认是一个指针（引用类型），如果没有对 interface 初始化就使用，那么会输出 nil
+
+10）、空接口 interface{}  没有任何方法，所以所有类型都实现了空接口，即我们可以把任何一个变量赋值给一个空接口
+
+```go
+package main
+import (
+	"fmt"
+)
+// 如果你要实现 A 接口，意味着你要把 B 接口和 C 接口里面的方法和 A 接口自己的方法都要一起实现
+type Student struct {
+
+}
+
+// T 是一个空接口
+type T interface {
+
+}
+func main() {
+	var stu Student;
+	// 可以看成 Student 默认实现了空接口
+	var t T = stu
+	// 也可以这么写 
+	var t2 interface{} = stu
+	var num float64 = 9.9
+	// 可以把这个 num 直接给一个空接口
+	t2 = num
+}
+```
 
 
 

@@ -189,6 +189,109 @@ public class TestWindow1 {
 
 
 
-### 二、JUC简介
+### 二、JUC
+
+#### 1、volatile 关键字与内存可见性
 
 在 Java5.0 提供了 java.util.concurrent （简称 juc 包），在此包中增加了在并发编程中很常用的实用工具类，用于定义类似于线程的自定义子系统，包括线程池、异步 IO 和轻量级任务框架。提供可调的、灵活的线程池。还提供了设计用于多线程上下文中的 Collection 实现
+
+在说 volatile 关键字与内存可见性之前，先看下面一段代码
+
+```java
+public class TestVolatile {
+    public static void main(String[] args) {
+        ThreadDemo td = new ThreadDemo();
+        Thread t = new Thread(td);
+        t.start();
+        while (true) {
+            if (td.isFlag()) {
+                System.out.println("-----------");
+                break;
+            }
+        }
+    }
+
+}
+
+class ThreadDemo implements Runnable {
+    private boolean flag = false;
+    @Override
+    public void run() {
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        flag = true;
+        System.out.println("flag = " + isFlag());
+
+    }
+
+    public boolean isFlag() {
+        return flag;
+    }
+
+    public void setFlag(boolean flag) {
+        this.flag = flag;
+    }
+}
+```
+
+这段代码有两个线程，一个主线程，一个子线程。子线程要做的事就是修改 flag 的值，主线程要做的事就是读取 flag 的值，如果 flag = true 就打印一连串虚线，并跳出循环。
+
+运行结果：
+
+```java
+flag = true
+并且程序没有停止
+```
+
+**共享变量在线程间的可见性：**
+
+> - 共享变量：如果一个变量在多个线程的工作内存中都存在副本，那么这个变量就是这几个线程的共享变量
+> - 可见性：一个线程对共享变量值的修改，能够及时的被其它线程看到
+
+**说明：**
+
+> - 所有变量都存储在主内存中
+> - 每个线程都有自己独立的工作内存，里面保存该线程使用到的变量的副本（主内存中该变量的一份拷贝）
+> - 线程对共享变量的所有操作都必须在自己的工作内存中进行，不能直接从相互内存中读写
+> - 不同线程之间无法直接访问其他线程工作内存中的变量，线程之间变量值的传递需要通过主内存来完成
+
+共享变量可见性实现原理：
+
+> 把工作内存1 中更新过的共享变量刷新到主内存中，把主内存中最新的共享变量的值更新到工作内存2 中
+
+**volatile 关键字：当多个线程进行操作共享数据时，可以保证内存中的数据是可见的**
+
+![内存可见性问题](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-juc/%E5%86%85%E5%AD%98%E5%8F%AF%E8%A7%81%E6%80%A7%E9%97%AE%E9%A2%98.png?q-sign-algorithm=sha1&q-ak=AKIDSx7XLXQhUdVWc1FcBEJr7y48hoUmjA2Z&q-sign-time=1560062451;1560066051&q-key-time=1560062451;1560066051&q-header-list=&q-url-param-list=&q-signature=3fdaff366ef13a244266fc1255a4d31bd7505cef&x-cos-security-token=6dc2d5c90a22113652166c25a788e8c13513a27910001)
+
+```java
+class ThreadDemo implements Runnable {
+    // 在共享数据上加一个 volatile 关键字
+    private volatile boolean flag = false;
+    @Override
+    public void run() {
+        try {
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        flag = true;
+        System.out.println("flag = " + isFlag());
+    }
+
+    public boolean isFlag() {
+        return flag;
+    }
+
+    public void setFlag(boolean flag) {
+        this.flag = flag;
+    }
+}
+```
+
+![内存可见性问题2](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-juc/%E5%86%85%E5%AD%98%E5%8F%AF%E8%A7%81%E6%80%A7%E9%97%AE%E9%A2%982.png?q-sign-algorithm=sha1&q-ak=AKIDZP2e5piepa9MDpN0g1yQ6MUMj0Kx1NSk&q-sign-time=1560062845;1560066445&q-key-time=1560062845;1560066445&q-header-list=&q-url-param-list=&q-signature=585034dd1978affe5bb714af0c73efa8a5eae971&x-cos-security-token=0fee2f4fb932cbb13d2c5c1a9a87452d6d844b0d10001)
+
+
+

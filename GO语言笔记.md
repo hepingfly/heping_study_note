@@ -6412,6 +6412,47 @@ func main() {
 }
 ```
 
+##### 4、接口编程经典案例
+
+```go
+package main
+import (
+	"fmt"
+	"sort"
+)
+// 声明 Hero 结构体
+type Hero struct {
+	Name string
+	Age int
+}
+// 声明一个 Hero 结构体切片类型
+type HeroSlice []Hero
+
+// 实现 Interface接口
+func (hs HeroSlice) Len() int {
+	return len(HeroSlice)
+}
+// Less 方法就是决定你使用什么标准进行排序
+// 现在我按 Hero 的年龄从小到大进行排序
+func (hs HeroSlice) Less(i,j int) bool {
+	return hs[i].Age > hs[j].Age
+}
+func (hs HeroSlice) Swap(i,j int) {
+	temp := hs[i]
+	hs[i] = hs[j]
+	hs[j] = hs[i]
+}
+// 我把三个方法都实现了，就意味着我可以调用 Sort 包中的 sort方法
+
+func main() {
+	// 定义一个切片
+	var intSlice = []int{7,9,4,6,10}
+	// 对切片进行排序
+	sort.Ints(intSlice)
+	fmt.Println(intSlice)
+}
+```
+
 
 
 

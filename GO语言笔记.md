@@ -6445,11 +6445,28 @@ func (hs HeroSlice) Swap(i,j int) {
 // 我把三个方法都实现了，就意味着我可以调用 Sort 包中的 sort方法
 
 func main() {
-	// 定义一个切片
-	var intSlice = []int{7,9,4,6,10}
-	// 对切片进行排序
-	sort.Ints(intSlice)
-	fmt.Println(intSlice)
+	// 测试看是否可以对结构体切片进行排序
+	var heroes HeroSlice
+	for i := 0; i < 10; i++ {
+		hero := Hero{
+			Name : fmt.Sprintf("英雄%d",rand.Intn(100)), // Sprintf 会返回一个格式化的字符串
+			Age : rand.Intn(100),
+		}
+		// 将 hero append 到 heros 切片中
+		heroes = append(heroes,hero)
+	}
+	// 排序前的顺序
+	for _,v := range heroes {
+		fmt.Println(v)
+	}
+	// 调用 sort.Sort 方法
+	// 之所以可以把 heroes 放进去，是因为 heroes 对应的切片类型实现了 Interface 接口
+	sort.Sort(heroes)
+	fmt.Println("-------")
+	// 排序后的顺序
+	for _,v := range heroes {
+		fmt.Println(v)
+	}
 }
 ```
 

@@ -264,7 +264,9 @@ flag = true
 
 **volatile 关键字：当多个线程进行操作共享数据时，可以保证内存中的数据是可见的**
 
-![内存可见性问题](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-juc/%E5%86%85%E5%AD%98%E5%8F%AF%E8%A7%81%E6%80%A7%E9%97%AE%E9%A2%98.png?q-sign-algorithm=sha1&q-ak=AKIDSx7XLXQhUdVWc1FcBEJr7y48hoUmjA2Z&q-sign-time=1560062451;1560066051&q-key-time=1560062451;1560066051&q-header-list=&q-url-param-list=&q-signature=3fdaff366ef13a244266fc1255a4d31bd7505cef&x-cos-security-token=6dc2d5c90a22113652166c25a788e8c13513a27910001)
+![内存可见性问题](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-juc/%E5%86%85%E5%AD%98%E5%8F%AF%E8%A7%81%E6%80%A7%E9%97%AE%E9%A2%98.png?q-sign-algorithm=sha1&q-ak=AKIDXHDkCk0xmkdNTBWv0ryBG3tNimKqojSn&q-sign-time=1560575042;1560578642&q-key-time=1560575042;1560578642&q-header-list=&q-url-param-list=&q-signature=e0ce0e95011b2f80ba179a75c015681b7ff894ad&x-cos-security-token=24079727f7e02bee9ceb7a86f82f8878c3b3660610001)
+
+
 
 ```java
 class ThreadDemo implements Runnable {
@@ -291,7 +293,308 @@ class ThreadDemo implements Runnable {
 }
 ```
 
-![内存可见性问题2](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-juc/%E5%86%85%E5%AD%98%E5%8F%AF%E8%A7%81%E6%80%A7%E9%97%AE%E9%A2%982.png?q-sign-algorithm=sha1&q-ak=AKIDZP2e5piepa9MDpN0g1yQ6MUMj0Kx1NSk&q-sign-time=1560062845;1560066445&q-key-time=1560062845;1560066445&q-header-list=&q-url-param-list=&q-signature=585034dd1978affe5bb714af0c73efa8a5eae971&x-cos-security-token=0fee2f4fb932cbb13d2c5c1a9a87452d6d844b0d10001)
+![内存可见性问题2](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-juc/%E5%86%85%E5%AD%98%E5%8F%AF%E8%A7%81%E6%80%A7%E9%97%AE%E9%A2%982.png?q-sign-algorithm=sha1&q-ak=AKID5AiFJXtA5XW34uZ1F3ji8Wlz5FOS6qi7&q-sign-time=1560575132;1560578732&q-key-time=1560575132;1560578732&q-header-list=&q-url-param-list=&q-signature=db838cde04401ff2c9664012b26aca83f929c6d8&x-cos-security-token=4c385f1569186a22d91e7626443e7a39387b0eb610001)
+
+#### 2、原子变量与 CAS 算法
+
+```java
+/**
+ * i++ 的原子性问题: 实际上分为三个步骤："读-改-写"
+ *  int i = 10
+ *  i = i++   // i = 10
+ *
+ *  i = i++ 在计算机底层是这么操作的：
+ *  int temp = i;  先把 i 赋给一个临时变量
+ *  i = i + 1;
+ *  i = temp;    再把临时变量赋值给 i
+ */
+public class TestAtomicDemo {
+    public static void main(String[] args) {
+        AtomicDemo ad = new AtomicDemo();
+        for (int i = 0; i < 10; i++) {
+            new Thread(ad).start();
+        }
+    }
+}
+
+class AtomicDemo implements Runnable {
+    private int serialNumber = 0;
+    @Override
+    public void run() {
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println(getSerialNumber());
+    }
+    public int getSerialNumber() {
+        return serialNumber++;
+    }
+}
+
+// 上面这段代码运行的时候会出现线程安全问题(原子性问题)
+// 0 1 0 4 2 0 3 7 5 6
+```
+
+下面分析一下上面线程安全产生的原因：
+
+![原子性问题](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-juc/%E5%8E%9F%E5%AD%90%E6%80%A7%E9%97%AE%E9%A2%98.png?q-sign-algorithm=sha1&q-ak=AKIDk7RKj1UuZB20oNyImKkKgnEYhXFfPLWv&q-sign-time=1560583191;1560586791&q-key-time=1560583191;1560586791&q-header-list=&q-url-param-list=&q-signature=38c1a4616b7980d50f825a9095123e296291ebb0&x-cos-security-token=8bf465737cbbd1d050d5cb7a72f376850007901410001)
+
+那么怎么解决上面产生的问题呢？
+
+使用原子变量：
+
+> jdk1.5 以后 java.util.concurrent.atomic 包下提供了常用的原子变量
+>
+> 原子变量时如何解决上面的问题的：
+>
+> 1、原子变量中包含 volatile 关键字,保证内存可见性
+>
+> 2、CAS（Compare-And-Swap） 算法保证数据的原子性
+>
+> - CAS 算法是硬件对于并发操作共享数据的支持
+> - CAS 算法包含了三个操作数
+>   - 内存值 V
+>   - 预估值 A
+>   - 更新值 B
+>   - 当且仅当 V == A 时，才把 V = B。否则，将不做任何操作
+
+![cas 算法](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-juc/cas%E7%AE%97%E6%B3%95.png?q-sign-algorithm=sha1&q-ak=AKIDyPKjwv3QA1VTA4Z96pY7EppasQcLPb4D&q-sign-time=1560585648;1560589248&q-key-time=1560585648;1560589248&q-header-list=&q-url-param-list=&q-signature=a22eda0f863fc11c41ccf74ef341a3dfc352fe4f&x-cos-security-token=f19fcc5a152d699320dbdac66d9675ae72a83d8910001)
+
+```java
+public class TestAtomicDemo {
+    public static void main(String[] args) {
+        AtomicDemo ad = new AtomicDemo();
+        for (int i = 0; i < 10; i++) {
+            new Thread(ad).start();
+        }
+    }
+}
+
+class AtomicDemo implements Runnable {
+
+    // 和包装类使用差不多
+    private AtomicInteger serialNumber = new AtomicInteger();
+
+    @Override
+    public void run() {
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println(getSerialNumber());
+    }
+
+    public int getSerialNumber() {
+        // 自增
+        return serialNumber.getAndIncrement();
+    }
+}
+
+// 这样就不会有线程安全问题了
+// 1 8 9 2 7 5 6 0 3 4
+```
+
+#### 3、模拟 cas 算法
+
+> - CAS（Compare-And-Swap）是一种硬件对并发的支持，针对多处理器操作而设计的处理器中的一种特殊指令，用于管理对共享数据的并发访问
+> - CAS 是一种无锁的非阻塞算法的实现
+> - CAS 包含了 3 个操作数
+>   - 需要读写的内存值 V
+>   - 进行比较的值 A
+>   - 拟写入的新值 B
+> - 当且仅当 V 的值等于 A 时，CAS 通过原子方式用新值 B 来更新 V 的值，否则不会执行任何操作
+
+```java
+/**
+ * 模拟 cas 算法
+ */
+public class TestCompareAndSwap {
+    public static void main(String[] args) {
+        CompareAndSwap cas = new CompareAndSwap();
+        for (int i = 0; i < 10; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    int expectValue = cas.get();
+                    boolean flag = cas.compareAndSet(expectValue, (int) Math.random());
+                    System.out.println(flag);
+                }
+            }).start();
+        }
+    }
+}
+class CompareAndSwap {
+    // 内存值
+    private int value;
+
+    // 用于获取内存值
+    public synchronized int get() {
+        return value;
+    }
+
+    //比较
+    public synchronized int compareAndSwap(int expectValue, int newValue) {
+        // 在比较前都会先读一下内存值
+        int oldValue = value;
+        // 让内存值和预估值进行比较
+        if (oldValue == expectValue) {
+            // 如果一样，就替换
+            this.value = newValue;
+        }
+        return oldValue;
+    }
+    // 设置值
+    public synchronized boolean compareAndSet(int expectValue, int newValue) {
+        return expectValue == compareAndSwap(expectValue, newValue);
+    }
+}
+```
+
+#### 4、concurrentHashMap
+
+> - java 5.0 在 java.util.concurrent 包中提供了多种并发容器类来改进同步容器的性能
+> - concurrentHashMap 同步容器类是 Java5 增加的一个线程安全的哈希表。对于多线程的操作，介于 HashMap 与 Hashtable 之间。内部采用 "锁分段" 机制替代 Hashtable 的独占锁，进而提高性能。
+> - 此包还提供了用于多线程上下文中的 Collection 实现：ConcurrentHashMap 、ConcurrentSkipListMap、ConcurrentSkipListSet、CopyOnWriteArrayList 和 CopyOnWriteArraySet。当期望许多线程访问一个给定 Collection 时，ConcurrentHashMap 通常优于同步的 HashMap。ConcurrentSkipListMap 通常优于同步的 TreeMap。当期望的读数和遍历远远大于列表的更新数时，CopyOnWriteArrayList 优于同步的 ArrayList
+
+```java
+/**
+ * 添加操作多时，效率低，因为每次添加时都会进行复制，开销非常大
+ * 但是当并发迭代操作时，可以选择，效率高
+ */
+public class TestCopyOnWriteArrayList {
+    public static void main(String[] args) {
+        HelloThread thread = new HelloThread();
+        for (int i = 0; i < 10; i++) {
+            new Thread(thread).start();
+        }
+    }
+}
+
+class HelloThread implements Runnable {
+    // synchronizedList 它的包装方式就是把 Arraylist 里面的方法都变成了同步方法
+//    private static List<String> list = Collections.synchronizedList(new ArrayList<String>());
+    private static CopyOnWriteArrayList<String> list = new CopyOnWriteArrayList<String>();
+    static {
+        list.add("AA");
+        list.add("BB");
+        list.add("CC");
+    }
+    @Override
+    public void run() {
+        Iterator<String> iterator = list.iterator();
+        while (iterator.hasNext()) {
+            System.out.println(iterator.next());
+            //边迭代边添加元素(会报 java.util.ConcurrentModificationException)
+            list.add("66");
+            // 使用 CopyOnWriteArrayList 每次添加时都会把列表复制一份
+        }
+    }
+}
+```
+
+#### 5、CountDownLatch 闭锁
+
+> - CountDownLatch 一个同步辅助类，在完成一组正在其他线程中执行的操作之前，它允许一个或多个线程一直等待
+> - 闭锁可以延迟线程的进度直到其到达终止状态，闭锁可以用来确保某些活动直到其他活动都完成才继续执行。
+>   - 确保某个计算在其需要的所有资源都被初始化之后才继续执行
+>   - 确保某个服务在其依赖的所有其他服务都已启动之后才启动
+>   - 等待直到某个操作所有参与者都准备就绪再继续执行
+
+```java
+package com.iflytek.juc;
+
+import java.util.concurrent.CountDownLatch;
+
+/**
+ * CountDownLatch ：闭锁，在完成某些运算时，只有其他所有线程的运算全部完成，当前运算才继续执行
+ */
+public class TestCountDownLatch {
+    public static void main(String[] args) {
+        // 这里初始化为 10，因为有 10 个子线程在执行,这里的 10 相当于一个计数器
+        final CountDownLatch latch = new CountDownLatch(10);
+        LatchDemo ld = new LatchDemo(latch);
+        /**
+         * 我现在开启 10 个子线程，想去算一下，30000 以内的偶数的执行时间
+         * 下面这种写法是有问题的，因为 10 个子线程，1 个主线程，这 11 个线程
+         * 是同时执行的，很可能都看不到最后打印的那句话
+         * 需要的做法应该是：等 10 个子线程执行完，然后我主线程再执行，算 10 个子线程的执行时间
+         */
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < 10; i++) {
+            new Thread(ld).start();
+        }
+        try {
+            // countDown 在递减到 0 之前，主线程一直等待
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("执行时间：" + (end - start));
+    }
+
+}
+
+class LatchDemo implements Runnable {
+    private CountDownLatch latch;
+
+    public LatchDemo(CountDownLatch latch) {
+        this.latch = latch;
+    }
+
+    @Override
+    public void run() {
+        // 为了防止有线程安全问题，加个锁
+        synchronized (this) {
+            try {
+                for (int i = 0; i < 30000; i++) {
+                    if (i % 2 == 0) {
+                        System.out.println(i);
+                    }
+                }
+            } finally {
+                // 一个线程执行完了之后，我需要把这个计数器递减 1
+                // 为了保证必须执行，所以放在 finally 中
+                latch.countDown();
+            }
+        }
+
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

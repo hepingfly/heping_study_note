@@ -6470,7 +6470,59 @@ func main() {
 }
 ```
 
+##### 5、实现接口和继承比较
 
+```go
+package main
+import (
+	"fmt"
+)
+// Monkey 结构体
+type Monkey struct {
+	Name string
+}
+func (this *Monkey) climbing() {
+	fmt.Println(this.Name,"猴子会爬树")
+}
+
+// LittleMonkey 结构体
+type LittleMonkey struct {
+	Monkey  // 继承 Monkey 这个结构体
+}
+
+// 声明一个接口
+type BirdAble interface {
+	Flying()
+}
+
+// 声明一个接口
+type FishAble interface {
+	Swimming()
+}
+
+// 实现 BirdAble 接口
+func (this *LittleMonkey) Flying() {
+	fmt.Println(this.Name,"会飞翔了")
+}
+
+// 实现 FishAble 接口
+func (this *LittleMonkey) Swimming() {
+	fmt.Println(this.Name,"会游泳了")
+}
+
+func main() {
+	// 创建一个 LittleMonkey 实例
+	litterMonkey := LittleMonkey{Monkey{Name:"swk"}}
+	fmt.Println(litterMonkey)
+	litterMonkey.climbing()
+	litterMonkey.Flying()
+	litterMonkey.Swimming()
+}
+```
+
+> - 当 A 结构体继承了 B 结构体，那么 A 结构体就自动继承了 B 结构体的字段和方法，并且可以直接使用
+> - 当 A 结构体需要扩展功能，同时又不希望破坏继承关系，则可以去实现某个接口
+> - 接口可以看做是对继承的一种补充
 
 
 

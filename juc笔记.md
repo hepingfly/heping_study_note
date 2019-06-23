@@ -566,6 +566,132 @@ class LatchDemo implements Runnable {
 }
 ```
 
+#### 6、实现 callable 接口
+
+除了实现 Runnable 接口和继承 Thread 接口，第三种创建线程的方式：
+
+实现 Callable 接口
+
+> - 相较于实现 Runnable 接口的方式，方法可以有返回值，并且可以抛出异常
+> - 执行 Callable 方式，需要 FutureTask 实现类的支持，用于接收运算结果。FutureTask 是 Future 接口的实现类
+
+```java
+/**
+ * 创建线程的方式三：实现 Callable 接口
+ * 相较于实现 Runnable 接口的方式，方法可以有返回值，并且可以抛出异常
+ *
+ * 执行 Callable 方式，需要 FutureTask 实现类的支持，用于接收运算结果。FutureTask 是 Future 接口的实现类
+ */
+public class TestCallable {
+    public static void main(String[] args) {
+        ThreadDemo2 td = new ThreadDemo2();
+        // 因为 Callable 接口有返回值，所以我们需要多一步接收返回值的操作
+        // 因此 Callable 接口需要一个 FutureTask 实现类的支持，用于接收运算结果
+        FutureTask<Integer> futureTask = new FutureTask<Integer>(td);
+        new Thread(futureTask).start();  // 启动线程
+        System.out.println("---------------");
+        // 在  new Thread(futureTask).start(); 线程的执行过程中，下面的主线程代码是没有执行的，子线程都执行完之后，下面主线程代码才会执行，类似于闭锁
+        try {
+            // 接收线程运算后的结果
+            Integer result = futureTask.get();  // futureTask 也可用于闭锁
+            System.out.println(result);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+/**
+ * 接口指定的泛型就是返回值的类型
+ */
+class ThreadDemo2 implements Callable<Integer> {
+
+    @Override
+    public Integer call() throws Exception {
+        int sum = 0;
+        for (int i = 0; i <= 100; i++) {
+            sum += i;
+        }
+        return sum;
+    }
+}
+
+/*class ThreadDemo2 implements Runnable {
+
+    @Override
+    public void run() {
+
+    }
+}*/
+```
+
+#### 7、同步锁 Lock
+
+> 用于解决多线程安全问题的方式：
+>
+> synchronized : 隐式锁
+>
+> - 同步代码块
+> - 同步方法
+>
+> jdk1.5 以后
+>
+> - 同步锁 Lock
+>   - 注意：这是一个显示锁，需要通过 lock() 方法上锁，必须通过 unlock() 方法进行释放锁
+
+```java
+public class TestLock {
+    public static void main(String[] args) {
+        Ticket ticket = new Ticket();
+        new Thread(ticket,"1号窗口").start();
+        new Thread(ticket,"2号窗口").start();
+        new Thread(ticket,"3号窗口").start();
+    }
+}
+
+class Ticket implements Runnable {
+    private int tickets = 100;
+    // lock 是一个接口,new 一个它的实现类
+    private Lock lock = new ReentrantLock();
+    @Override
+    public void run() {
+        while (true) {
+            lock.lock();   // 上锁
+            try {
+                if (tickets > 0) {
+                    try {
+                        Thread.sleep(200);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    System.out.println(Thread.currentThread().getName() + "余票为：" + --tickets);
+                }
+            } finally {
+                lock.unlock();   // 释放锁,这里的锁一定要释放，所以写到 finally 中
+            }
+        }
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

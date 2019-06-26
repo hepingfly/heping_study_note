@@ -118,6 +118,7 @@ public class HelloWorldMainApplication {
     public static void main(String[] args) {
         //spring应用启动起来
         SpringApplication.run(HelloWorldMainApplication.class,args);
+        // 让这个 spring 应用跑起来，第一个参数把这个主程序类传进来，第二个参数把 main 方法的 args 参数传进来
     }
 }
 ```

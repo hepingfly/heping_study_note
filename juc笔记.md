@@ -676,11 +676,626 @@ class Ticket implements Runnable {
 }
 ```
 
+#### 8、生产者消费者案例
+
+等待唤醒机制最经典一个的案例，就是生产者消费者案例
+
+**没有使用等待唤醒机制的生产者消费者案例：**
+
+```java
+/**
+ * 生产者消费者案例
+ * 生产者生产产品给店员
+ * 消费者从店员处取产品
+ */
+public class ProductorAndConsumer {
+    public static void main(String[] args) {
+        Clerk clerk = new Clerk();
+        Productor productor = new Productor(clerk);
+        Consumer consumer = new Consumer(clerk);
+        new Thread(productor, "生产者").start();
+        new Thread(consumer, "消费者").start();
+    }
+}
+
+class Clerk {
+    private int product = 0;
+
+    // 进货（假设最多只能有 10 个货物，超过 10 个就产品已满）
+    public synchronized void get() {
+        if (product >= 10) {
+            System.out.println("产品已满，无法添加");
+        } else {
+            System.out.println(Thread.currentThread().getName() + ":" + ++product);
+        }
+    }
+
+    // 卖货（如果货物小于 0 ，提示缺货）
+    public synchronized void sale() {
+        if (product <= 0) {
+            System.out.println("缺货了");
+        } else {
+            System.out.println(Thread.currentThread().getName() + ":" + --product);
+        }
+    }
+}
+
+/**
+ * 生产者
+ */
+class Productor implements Runnable {
+    // 生产者生产产品给到店员
+    private Clerk clerk;
+
+    public Productor(Clerk clerk) {
+        this.clerk = clerk;
+    }
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 20; i++) {
+            clerk.get();
+        }
+    }
+}
+
+/**
+ * 消费者
+ */
+class Consumer implements Runnable {
+
+    // 消费者从店员处消费商品
+    private Clerk clerk;
+
+    public Consumer(Clerk clerk) {
+        this.clerk = clerk;
+    }
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 20; i++) {
+            clerk.sale();
+        }
+    }
+}
+```
+
+运行结果：
+
+````
+生产者:1
+生产者:2
+生产者:3
+生产者:4
+生产者:5
+生产者:6
+生产者:7
+生产者:8
+生产者:9
+生产者:10
+产品已满，无法添加
+产品已满，无法添加
+产品已满，无法添加
+产品已满，无法添加
+产品已满，无法添加
+产品已满，无法添加
+产品已满，无法添加
+产品已满，无法添加
+产品已满，无法添加
+产品已满，无法添加
+消费者:9
+消费者:8
+消费者:7
+消费者:6
+消费者:5
+消费者:4
+消费者:3
+消费者:2
+消费者:1
+消费者:0
+缺货了
+缺货了
+缺货了
+缺货了
+缺货了
+缺货了
+缺货了
+缺货了
+缺货了
+缺货了
+````
+
+产品已满了，生产者还没有停，一直在不断的生产，所以循环 20 次，会有 10 次产品已满的情况。消费者同理，货物被消费完了，但是消费者还在不断的消费，所以会打印 10 次 缺货了。
+
+**注：**
+
+> **在实际开发中，我们把添加和创建数据的线程叫生产者线程，把删除和销毁数据的线程叫消费者线程**
+>
+> 如果生产者线程过快，也就是说你不断的发数据，另一方其实已经接收不到了，这时候就会造成一个数据丢失的情况
+>
+> 如果消费者线程过快， 也就是说你不断的接收数据，但是另一方其实已经不发了， 这时候就可能出现重复的数据或者错误的数据。
+
+使用等待唤醒机制解决上述问题：
+
+```java
+/**
+ * 生产者消费者案例
+ * 生产者生产产品给店员
+ * 消费者从店员处取产品
+ */
+public class ProductorAndConsumer {
+    public static void main(String[] args) {
+        Clerk clerk = new Clerk();
+        Productor productor = new Productor(clerk);
+        Consumer consumer = new Consumer(clerk);
+        new Thread(productor, "生产者").start();
+        new Thread(consumer, "消费者").start();
+    }
+}
+
+class Clerk {
+    private int product = 0;
+
+    // 进货（假设最多只能有 10 个货物，超过 10 个就产品已满）
+    public synchronized void get() {
+        if (product >= 10) {
+            System.out.println("产品已满，无法添加");
+            // 如果产品已满了，生产者就不能继续生产产品了
+            try {
+                this.wait();  // 等待
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println(Thread.currentThread().getName() + ":" + ++product);
+            // 如果生产者成功生产了一个产品，说明有多余的产品供消费者消费
+            this.notifyAll();   // 通知消费者可以进行消费
+        }
+    }
+
+    // 卖货（如果货物小于 0 ，提示缺货）
+    public synchronized void sale() {
+        if (product <= 0) {
+            System.out.println("缺货了");
+            // 如果缺货了，消费者就不能继续进行消费了
+            try {
+                this.wait();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println(Thread.currentThread().getName() + ":" + --product);
+            // 如果成功消费了一个产品，就可以通知生产者继续进行生产
+            this.notifyAll();
+        }
+    }
+}
+
+/**
+ * 生产者
+ */
+class Productor implements Runnable {
+    // 生产者生产产品给到店员
+    private Clerk clerk;
+
+    public Productor(Clerk clerk) {
+        this.clerk = clerk;
+    }
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 20; i++) {
+            clerk.get();
+        }
+    }
+}
+
+/**
+ * 消费者
+ */
+class Consumer implements Runnable {
+    // 消费者从店员处消费商品
+    private Clerk clerk;
+
+    public Consumer(Clerk clerk) {
+        this.clerk = clerk;
+    }
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 20; i++) {
+            clerk.sale();
+        }
+    }
+}
+```
+
+运行结果：
+
+```
+生产者:1
+消费者:0
+缺货了
+生产者:1
+生产者:2
+生产者:3
+生产者:4
+生产者:5
+生产者:6
+生产者:7
+生产者:8
+生产者:9
+生产者:10
+产品已满，无法添加
+消费者:9
+消费者:8
+消费者:7
+消费者:6
+消费者:5
+消费者:4
+消费者:3
+消费者:2
+消费者:1
+消费者:0
+缺货了
+生产者:1
+生产者:2
+生产者:3
+生产者:4
+生产者:5
+生产者:6
+生产者:7
+生产者:8
+消费者:7
+消费者:6
+消费者:5
+消费者:4
+消费者:3
+消费者:2
+消费者:1
+```
+
+上述就是一旦发现产品已满，生产者就不会再继续生产了。一旦发现缺货，消费者就不会再继续消费了。
+
+**为了避免虚假唤醒，wait 操作应该始终写在循环中：**
+
+```java
+package com.iflytek.juc;
+
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+public class ProductorAndConsumerForLock {
+    public static void main(String[] args) {
+        Clerk clerk = new Clerk();
+        Productor productor = new Productor(clerk);
+        Consumer consumer = new Consumer(clerk);
+        new Thread(productor, "生产者").start();
+        new Thread(consumer, "消费者").start();
+    }
+}
+class Clerk {
+    private int product = 0;
+
+    // 进货（假设最多只能有 10 个货物，超过 10 个就产品已满）
+    public void get() {
+        while (product >= 10) {  // 为了避免虚假唤醒, wait 应该始终写在循环中
+                System.out.println("产品已满，无法添加");
+                // 如果产品已满了，生产者就不能继续生产产品了
+                try {
+                    this.wait();  // 等待
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            System.out.println(Thread.currentThread().getName() + ":" + ++product);
+            // 如果生产者成功生产了一个产品，说明有多余的产品供消费者消费
+            this.notifyAll();   // 通知消费者可以进行消费
+    }
+
+    // 卖货（如果货物小于 0 ，提示缺货）
+    public void sale() {
+        while (product <= 0) {   // 为了避免虚假环境 wait 应该始终写在循环里面
+                System.out.println("缺货了");
+                // 如果缺货了，消费者就不能继续进行消费了
+                try {
+                    this.wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            System.out.println(Thread.currentThread().getName() + ":" + --product);
+            // 如果成功消费了一个产品，就可以通知生产者继续进行生产
+            this.notifyAll();
+    }
+}
+
+/**
+ * 生产者
+ */
+class Productor implements Runnable {
+    // 生产者生产产品给到店员
+    private Clerk clerk;
+
+    public Productor(Clerk clerk) {
+        this.clerk = clerk;
+    }
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 20; i++) {
+            clerk.get();
+        }
+    }
+}
+
+/**
+ * 消费者
+ */
+class Consumer implements Runnable {
+
+    // 消费者从店员处消费商品
+    private Clerk clerk;
+
+    public Consumer(Clerk clerk) {
+        this.clerk = clerk;
+    }
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 20; i++) {
+            clerk.sale();
+        }
+    }
+}
 
 
+```
 
+#### 9、Condition 线程通信
 
+> - Condition 接口描述了可能与锁有关联的条件变量。这些变量在用法上与使用 Object.wait() 类似，但提供了更强大的功能。需要特别指出的是，单个 Lock 可能与多个 Condition 对象关联。为了避免兼容性问题，Condition 方法的名称与对应的 Object 版本中的不同
+> - 在 Condition 对象中，与 `wait` 、`notify`、 `notifyAll` 方法对应的分别是 `await` 、`signal` 、`signalAll` 
+> - Condition 实例实际上是被绑定到一个锁上。要为特定 Lock 实例获得 Condition 实例，请使用 `newCondition()` 方法
 
+```java
+/**
+ * 使用同步锁的方式避免线程安全问题
+ */
+public class ProductorAndConsumerForLock {
+    public static void main(String[] args) {
+        Clerk clerk = new Clerk();
+        Productor productor = new Productor(clerk);
+        Consumer consumer = new Consumer(clerk);
+        new Thread(productor, "生产者").start();
+        new Thread(consumer, "消费者").start();
+    }
+}
+class Clerk {
+    private int product = 0;
+    private Lock lock = new ReentrantLock();
+    private Condition condition = lock.newCondition();
+
+    // 进货（假设最多只能有 10 个货物，超过 10 个就产品已满）
+    public void get() {
+        lock.lock();
+        try {
+            while (product >= 10) {  // 为了避免虚假唤醒, wait 应该始终写在循环中
+                System.out.println("产品已满，无法添加");
+                // 如果产品已满了，生产者就不能继续生产产品了
+                try {
+                    condition.await();  // 等待
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            System.out.println(Thread.currentThread().getName() + ":" + ++product);
+            // 如果生产者成功生产了一个产品，说明有多余的产品供消费者消费
+            condition.signalAll();   // 通知消费者可以进行消费
+        }finally {
+            lock.unlock();
+        }
+    }
+
+    // 卖货（如果货物小于 0 ，提示缺货）
+    public void sale() {
+        lock.lock();
+        try {
+            while (product <= 0) {   // 为了避免虚假环境 wait 应该始终写在循环里面
+                System.out.println("缺货了");
+                // 如果缺货了，消费者就不能继续进行消费了
+                try {
+                    condition.await();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            System.out.println(Thread.currentThread().getName() + ":" + --product);
+            // 如果成功消费了一个产品，就可以通知生产者继续进行生产
+            condition.signalAll();
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+
+/**
+ * 生产者
+ */
+class Productor implements Runnable {
+    // 生产者生产产品给到店员
+    private Clerk clerk;
+
+    public Productor(Clerk clerk) {
+        this.clerk = clerk;
+    }
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 20; i++) {
+            clerk.get();
+        }
+    }
+}
+
+/**
+ * 消费者
+ */
+class Consumer implements Runnable {
+
+    // 消费者从店员处消费商品
+    private Clerk clerk;
+
+    public Consumer(Clerk clerk) {
+        this.clerk = clerk;
+    }
+
+    @Override
+    public void run() {
+        for (int i = 0; i < 20; i++) {
+            clerk.sale();
+        }
+    }
+}
+```
+
+#### 10、线程按序交替
+
+有这么一个功能需要完成，编写一个程序，开启三个线程，这三个线程的 id 分别是 A 、B、C ，每个线程将自己的 id 打印 5 遍，A 打印完 B打印，B 打印完 C 打印，然后循环 10 次，要求输出的结果必须按照顺序显示
+
+```java
+/**
+ * 编写一个程序，开启三个线程，这三个线程的 id 分别为 A、B、C
+ * 每个线程将自己的 id 在屏幕上打印 5 遍，要求输出的结果必须按顺序显示，循环 10 轮
+ */
+public class TestABCAlternate {
+    public static void main(String[] args) {
+        AlternateDemo ad = new AlternateDemo();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                // 线程 A 在屏幕上打印 10 遍
+                for (int i = 1;i <= 10; i++) {
+                    ad.loopA(i);  // 第几轮打印 A
+                }
+            }
+        },"线程A").start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                // 线程 B 在屏幕上打印 10 遍
+                for (int i = 1;i <= 10; i++) {
+                    ad.loopB(i);  // 第几轮打印 B
+                }
+            }
+        },"线程B").start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                // 线程 C 在屏幕上打印 10 遍
+                for (int i = 1;i <= 10; i++) {
+                    ad.loopC(i);  // 第几轮打印 C
+                }
+            }
+        },"线程C").start();
+    }
+}
+
+class AlternateDemo {
+
+    // 当前正在执行线程的标记
+    private int number = 1;
+
+    // 访问上面 number 共享数据，得有锁，否则会存在线程安全问题
+    private Lock lock = new ReentrantLock();
+    // 三个线程要实现按序交替，一定是需要线程通信
+    private Condition condition1 = lock.newCondition();
+    private Condition condition2 = lock.newCondition();
+    private Condition condition3 = lock.newCondition();
+
+    /**
+     * 循环 A 线程
+     * totalLoop 循环第几轮
+     */
+    public void loopA (int totalLoop) {
+        lock.lock();
+        try {
+            // 1.首先我需要判断当前执行的这个线程的编号是不是 1
+            if (number != 1) {
+                // 不等于 1 这个线程就不能操作，什么时候等于 1 我 A 线程才能进行打印操作
+                condition1.await();  // 不等于 1 就让它等待
+            }
+            // 2.等于 1 就执行打印操作，这里我打印 A 5次
+            for (int i = 1; i <= 5; i++) {
+                System.out.println(Thread.currentThread().getName() + "\t" + i + "\t" + totalLoop );
+                // 线程名 + A打印的次数 + 这是第几轮打印的A
+            }
+            // 3.当 A 打印完之后就该把线程执行权交出去，唤醒别人，让别人去打
+            number = 2;  // A打印完之后，让 number = 2，让 2 去执行
+            condition2.signal();  // 把 condition2 唤醒
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            lock.unlock();
+        }
+    }
+    /**
+     * 循环 B 线程
+     * totalLoop 循环第几轮
+     */
+    public void loopB (int totalLoop) {
+        lock.lock();
+        try {
+            // 1.首先我需要判断当前执行的这个线程的编号是不是 2
+            if (number != 2) {
+                // 不等于 2 这个线程就不能操作，什么时候等于 2 我 B 线程才能进行打印操作
+                condition2.await();  // 不等于 2 就让它等待
+            }
+            // 2.等于 2 就执行打印操作，这里我打印 B 5次
+            for (int i = 1; i <= 5; i++) {
+                System.out.println(Thread.currentThread().getName() + "\t" + i + "\t" + totalLoop );
+                // 线程名 + B打印的次数 + 这是第几轮打印的B
+            }
+            // 3.当 B 打印完之后就该把线程执行权交出去，唤醒别人，让别人去打
+            number = 3;  // B打印完之后，让 number = 3，让 3 去执行
+            condition3.signal();  // 把 condition3 唤醒
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    /**
+     * 循环 C 线程
+     * totalLoop 循环第几轮
+     */
+    public void loopC (int totalLoop) {
+        lock.lock();
+        try {
+            // 1.首先我需要判断当前执行的这个线程的编号是不是 3
+            if (number != 3) {
+                // 不等于 3 这个线程就不能操作，什么时候等于 3 我 C 线程才能进行打印操作
+                condition3.await();  // 不等于 3 就让它等待
+            }
+            // 2.等于 3 就执行打印操作，这里我打印 C 5次
+            for (int i = 1; i <= 5; i++) {
+                System.out.println(Thread.currentThread().getName() + "\t" + i + "\t" + totalLoop );
+                // 线程名 + B打印的次数 + 这是第几轮打印的B
+            }
+            // 3.当 C 打印完之后就该把线程执行权交出去，唤醒别人，让别人去打
+            number = 1;  // C打印完之后，让 number = 1，让 1 去执行
+            condition1.signal();  // 把 condition1 唤醒
+            System.out.println("------------");
+
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+```
 
 
 

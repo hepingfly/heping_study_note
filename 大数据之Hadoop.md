@@ -73,6 +73,40 @@ Hadoop 三大发行版本：『Apache』 、『Cloudera』 、『Hortonworks』
 > - 高容错性
 >   - 能够自动将失败的任务重新分配
 
+#### 5、Hadoop1.X 和 Hadoop2.X 的区别
+
+> 在 Hadoop1.x 时代，Hadoop 中的 MapReduce 同时处理业务逻辑运算和资源的调度，耦合性较大。在 Hadoop2.x 时代，增加了 Yarn。Yarn 只负责资源的调度，MapReduce 只负责运算。
+
+#### 6、Hadoop 组成
+
+1）、HDFS 架构概述
+
+> - NameNode（nn）：存储文件的元数据。如：文件名，文件的目录结构，文件属性（生成时间、副本数、文件权限），以及每个文件的块列表和块所在的 DataNode 等
+> - DataNode（dn）：在本地文件系统存储文件块数据，以及块数据的校验和
+> - Secondary NameNode（2nn）：用来监控 HDFS 状态的辅助后台程序，每隔一段时间获取 HDFS 元数据的快照
+
+2）、YARN 架构概述
+
+
+
+![YARN架构图](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/YARN%E6%9E%B6%E6%9E%84%E5%9B%BE.png?q-sign-algorithm=sha1&q-ak=AKIDZITLCJPWLRCnM5cINcxBIAkReIWq1OlZ&q-sign-time=1561898909;1561902509&q-key-time=1561898909;1561902509&q-header-list=&q-url-param-list=&q-signature=139cbfcf3a749bf2289c5a686002dabffb685756&x-cos-security-token=d79202255d539beaec8bd89a4a189c78aa00d8a710001)
+
+3）、MapReduce 架构概述
+
+> MapReduce 将计算过程分为两个阶段：Map 和 Reduce
+>
+> ① Map 阶段并行处理输入数据
+>
+> ② Reduce 阶段对 Map 结果进行汇总
+
+#### 7、大数据生态体系
+
+![大数据生态体系](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/%E5%A4%A7%E6%95%B0%E6%8D%AE%E6%8A%80%E6%9C%AF%E7%94%9F%E6%80%81%E4%BD%93%E7%B3%BB.png?q-sign-algorithm=sha1&q-ak=AKIDMdaImNPsQyFY1Wyji7gklhzPznStrxiD&q-sign-time=1561905423;1561909023&q-key-time=1561905423;1561909023&q-header-list=&q-url-param-list=&q-signature=6f457ff3ea0ede5559881ca238b08d715bad91ea&x-cos-security-token=882c51851a53b266d347fa480a8ca1d59ea8742f10001)
+
+
+
+
+
 
 
 

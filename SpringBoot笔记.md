@@ -171,6 +171,8 @@ public class HelloController {
 
 所以 「spring-boot-dependencies」可以看成是 SpringBoot 的==版本仲裁中心==，以后我们导入依赖默认是不需要写版本的，因为你所有依赖的版本信息都在 「spring-boot-dependencies」中帮你管理了（当然，如果没有在 dependencies 里面管理的依赖仍然还是需要声明版本号的）
 
+因此导入 「spring-boot-starter-parent」这个依赖，就可以把它理解为版本仲裁的作用。
+
 ##### 2、启动器
 
 ```xml

@@ -1297,6 +1297,215 @@ class AlternateDemo {
 }
 ```
 
+#### 11、ReadWriteLock 读写锁
+
+> - ReadWriteLock 维护了一对相关的锁，一个用于只读操作，一个用于写入操作。只要没有 writer，读取锁可以由多个 reader 线程同时保持。写入锁是读占的。
+> -  ReadWriteLock 读取操作通常不会改变共享资源，但执行写入操作时，必须独占方式来获取锁。对于读取操作占多数的数据结构，ReadWriteLock 能够提供比独占锁更高的并发性。而对于只读的数据结构，其中包含的不变性可以完全不需要考虑加锁操作
+
+说明：
+
+> 原来我们有线程安全问题，就直接上锁，所以不管是读还是写，一次只能有一个线程，效率比较低。现在可以把它分开，写一次只能有一个线程，但读可以有 n 个线程一起读，因此只要你读操作比较多的话，就可以提高效率。
+>
+> 什么情况下用读写锁？
+>
+> 写写/读写   需要互斥
+>
+> ① 多个线程都在写，那么这几个线程肯定要互斥
+>
+> ②一个线程在写一个线程在读，这两个线程也需要互斥，假如说一个线程写到一半就被读了，这样是有问题的，因此需要互斥
+>
+> 读读       不需要互斥
+>
+> 所以现在我们可以不用像原来那样，只要有线程安全问题，就上锁，不管读还是写只能一个线程独占
+
+```java
+public class TestReadWriteLock {
+    public static void main(String[] args) {
+        // 我用一个线程去写，10个线程去读
+        ReadWriteLockDemo rw = new ReadWriteLockDemo();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                rw.set(888);
+            }
+        },"writeLock").start();
+        for (int i = 0; i < 10; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    rw.get();
+                }
+            }).start();
+        }
+    }
+}
+
+class ReadWriteLockDemo {
+    private int number = 0;
+    // 读和写访问的都是共享数据 number，存在线程安全问题
+    // 现在我想读可以允许多线线程并发的读，写一次只能允许一个线程去写
+    private ReadWriteLock lock = new ReentrantReadWriteLock();
+
+    // 读操作
+    public void get() {
+        lock.readLock().lock();   // 上锁
+        try {
+            System.out.println(Thread.currentThread().getName() + ":" + number);
+        } finally {
+            lock.readLock().unlock();   // 释放锁
+        }
+
+    }
+
+    // 写操作
+    public void set(int number) {
+        lock.writeLock().lock();   // 上锁
+        try {
+            System.out.println(Thread.currentThread().getName());
+            this.number = number;
+        } finally {
+            lock.writeLock().unlock();   // 释放锁
+        }
+    }
+}
+```
+
+#### 12、线程八锁
+
+判断下面八种情况，打印的 "one" "two" 情况
+
+```java
+/**
+ * 判断打印 "one"  "two"
+ *
+ * 1、两个普通同步方法，两个线程，标准打印，打印？   one two
+ * 2、新增 Thread.sleep() 方法给 getOne() 方法，打印？   one  two
+ * 3、新增普通方法 getThree() ,打印？    three one two
+ * 4、两个普通的同步方法，两个 Number 对象，打印？   two one
+ * 5、修改 getOne 为静态同步方法，一个 Number 对象，打印？   two one
+ * 6、修改两个方法均为静态同步方法，一个 Number 对象，打印？   one two
+ * 7、一个静态同步方法，一个非静态同步方法，两个 Number 对象，打印？  two one
+ * 8、两个静态同步方法，两个 Number 对象，打印？   one two
+ *
+ * 线程八锁的关键：
+ * ① 非静态方法的锁默认为 this ，静态方法的锁为对应的 Class 实例
+ * ② 某一个时刻内，只能有一个线程持有锁，无论几个方法
+ */
+public class TestThread8Monitor {
+    public static void main(String[] args) {
+        Number number = new Number();
+        Number number2 = new Number();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                number.getOne();
+            }
+        }).start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                number2.getTwo();
+            }
+        }).start();
+        /*new Thread(new Runnable() {
+            @Override
+            public void run() {
+                number.getThree();
+            }
+        }).start();*/
+    }
+}
+
+class Number {
+
+    public static synchronized void getOne() {
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("one");
+    }
+
+    public static synchronized void getTwo() {
+        System.out.println("two");
+    }
+
+    public void getThree() {
+        System.out.println("three");
+    }
+}
+```
+
+**线程八锁的关键：**
+
+> ① 非静态方法的锁默认为 this ，静态方法的锁为对应的 Class 实例
+>
+> ② 某一个时刻内，只能有一个线程持有锁，无论几个方法
+
+```java
+class Number {
+
+    public static synchronized void getOne() {
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("one");
+    }
+
+    public static synchronized void getTwo() {
+        System.out.println("two");
+    }
+    // 以上面这两个方法为例，这两个都是静态同步方法，锁是谁？ 答案是，Number.class ，这个 Class 实例只有一个，两个线程同时执行，一旦被某个线程抢到了执行权，就握住了这把锁，另外一个线程就抢不到锁，就得阻塞，等那个线程把锁释放了，另外一个线程才能进得去(所以关键要找对锁的对象)
+}
+//--------------------------------------------------------------------
+class Number {
+    public static synchronized void getTwo() {
+        System.out.println("two");
+    }
+
+    public void getThree() {
+        System.out.println("three");
+    }
+    // 再以上面这两个方法说下，上面这两个方法一个是静态同步方法，一个是普通方法，这两个方法是没有竞争关系，不存在一个线程，另一个线程就阻塞，等线程释放才能执行，这两个线程可以同时执行
+}
+
+//--------------------------------------------------------------------
+class Number {
+
+    public static synchronized void getOne() {
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("one");
+    }
+
+    public synchronized void getTwo() {
+        System.out.println("two");
+    }
+    // 再以上面这两个方法为例，一个是静态同步方法，一个是非静态同步方法，静态同步方法的锁是 Number.class 实例，非静态同步方法的锁是 this ，这两个也不存在竞争关系，所以两个线程可以同时执行，就不存在线程1抢到了锁，线程2 必须等线程1 释放锁后才能执行，可以同时执行。
+
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

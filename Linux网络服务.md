@@ -33,3 +33,21 @@
 | 设置服务不自启动       | `chkconfig 服务名 off`   | `systemctl disable 服务名`  |
 | 查看所有服务自启动状态 | `chkconfig --list`       | `systemctl list-unit-files` |
 
+### 4、CentOS6 和 CentOS7 对比3
+
+|              | CentOS6.X                   | CentOS7.X                    |
+| ------------ | --------------------------- | ---------------------------- |
+| 网卡名       | CentOS6.X 网卡名是： `eth0` | CentOS7.X 网卡名：`ens33`    |
+| 网络配置命令 | `ifconfig/setup`            | `ip/nmtui`                   |
+| 网络服务     | 默认使用 network 服务       | 默认使用 NetworkManager 服务 |
+
+
+
+
+
+
+
+
+
+
+

@@ -103,7 +103,74 @@ Hadoop 三大发行版本：『Apache』 、『Cloudera』 、『Hortonworks』
 
 ![大数据生态体系](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/%E5%A4%A7%E6%95%B0%E6%8D%AE%E6%8A%80%E6%9C%AF%E7%94%9F%E6%80%81%E4%BD%93%E7%B3%BB.png?q-sign-algorithm=sha1&q-ak=AKIDMdaImNPsQyFY1Wyji7gklhzPznStrxiD&q-sign-time=1561905423;1561909023&q-key-time=1561905423;1561909023&q-header-list=&q-url-param-list=&q-signature=6f457ff3ea0ede5559881ca238b08d715bad91ea&x-cos-security-token=882c51851a53b266d347fa480a8ca1d59ea8742f10001)
 
+#### 8、hadoop 安装
 
+**步骤：**
+
+```
+① 先拷贝 hadoop 的 tar 包（hadoop-2.7.2.tar.gz）至服务器指定目录下
+假设把 hadoop-2.7.2.tar.gz 放在 『/usr/local/module』 目录下
+② 将 tar 包解压，解压完成之后进入 hadoop 目录
+cd hadoop-2.7.2
+③ 获取 hadoop 的安装路径
+pwd
+『/usr/local/module/hadoop-2.7.2』
+④ 编辑环境变量配置文件
+vim /etc/profile
+⑤ 配置 hadoop 环境变量
+export HADOOP_HOME=/usr/local/module/hadoop-2.7.2
+export PATH=$HADOOP_HOME/bin:$PATH
+export PATH=$HADOOP_HOME/sbin:$PATH
+⑥ 验证
+使用 hadoop 命令，出现下面一大段描述字，表示环境变量配置成功
+```
+
+```shell
+[root@hadoop1 hadoop-2.7.2]# hadoop
+
+Usage: hadoop [--config confdir] [COMMAND | CLASSNAME]
+  CLASSNAME            run the class named CLASSNAME
+ or
+  where COMMAND is one of:
+  fs                   run a generic filesystem user client
+  version              print the version
+  jar <jar>            run a jar file
+                       note: please use "yarn jar" to launch
+                             YARN applications, not this command.
+  checknative [-a|-h]  check native hadoop and compression libraries availability
+  distcp <srcurl> <desturl> copy file or directories recursively
+  archive -archiveName NAME -p <parent path> <src>* <dest> create a hadoop archive
+  classpath            prints the class path needed to get the
+  credential           interact with credential providers
+                       Hadoop jar and the required libraries
+  daemonlog            get/set the log level for each daemon
+  trace                view and modify Hadoop tracing settings
+
+Most commands print help when invoked w/o parameters.
+
+```
+
+**注意：**
+
+> 在安装 hadoop 之前要配置主机名和 ip 的映射关系，否则在后面使用 hadoop 过程中会出现很多问题
+>
+> `vim /etc/hosts`
+>
+> 使用上面命令，配置好主机名和 ip 的映射关系
+
+## 三、Hadoop 运行模式
+
+Hadoop 运行模式包括，本地模式、伪分布式模式、完全分布式模式
+
+#### 1、本地模式 grep 官方案例
+
+```shell
+mkdir input
+cp etc/hadoop/*.xml input/
+hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.2.jar grep input output 'dfs[a-z.]+'
+cd output
+cat part-r-00000
+```
 
 
 

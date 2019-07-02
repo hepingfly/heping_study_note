@@ -41,7 +41,32 @@
 | 网络配置命令 | `ifconfig/setup`            | `ip/nmtui`                   |
 | 网络服务     | 默认使用 network 服务       | 默认使用 NetworkManager 服务 |
 
+### 5、CentOS7 网卡配置
 
+① 配置文件目录
+
+`/etc/sysconfig/network-scripts/ifcfg-ens33`
+
+② 配置管理命令
+
+`ifconfig/ip address show`
+
+③ 配置文件内容
+
+```
+DEVICE=ens33        # 设备名称
+NAME=ens33          # 网卡名称
+BOOTPROTO=static    # 连接方式(dhcp/static)
+ONBOOT=yes			# 是否开机加载
+IPADDR=192.168.141.11    # ip 地址
+NETMAST=255.255.255.0    # 子网掩码(PREFIX=24)
+GATEWAY=192.168.12.1     # 网关
+DNS1=8.8.8.8            # DNS
+```
+
+注：
+
+网卡的配置文件中选项要大写，小写不报错，但不生效，参数可以小写
 
 
 

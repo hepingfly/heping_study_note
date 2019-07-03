@@ -172,13 +172,197 @@ cd output
 cat part-r-00000
 ```
 
+#### 2、本地模式 WordCount 官方案例
 
+**步骤：**
 
+① 在 hadoop 目录下创建一个 `wcinput` 文件夹
 
+```shell
+[root@hadoop1 hadoop-2.7.2]# mkdir wcinput
+```
 
+② 在 wcinput 文件夹下创建一个 wc.input 文件，并在里面编辑内容
 
+````shell
+vim wc.input
 
+heping kevin James curry Jordan
+heping
+````
 
+③ 回退到 hadoop 目录下执行程序
+
+```shell
+hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.2.jar wordcount wcinput/ wcoutput
+```
+
+④ 执行结果
+
+```
+[root@hadoop1 wcoutput]# cat part-r-00000 
+James	1
+Jordan	1
+curry	1
+heping	2
+kevin	1
+```
+
+#### 3、伪分布式-启动 HDFS 并 运行 MR 程序
+
+要想完成启动 HDFS 并运行 MR 程序，主要需要经过下面三个步骤：
+
+> 1、配置集群
+>
+> 2、启动、测试集群增、删、查
+>
+> 3、执行 WordCount 案例
+
+1）、配置集群
+
+① 配置 `hadoop-env.sh`
+
+> 在这个文件中主要是为了去修改 `JAVA_HOME` 
+>
+> ```shell
+> echo $JAVA_HOME
+> /usr/local/java/jdk1.8.0_144     # 先看下系统中 JAVA_HOME 的位置
+>
+> cd hadoop-2.7.2/etc/hadoop
+> vim hadoop-env.sh
+> 『
+> export JAVA_HOME=${JAVA_HOME}
+> # 把这里改成 export JAVA_HOME=/usr/local/java/jdk1.8.0_144 
+> 』
+> 然后保存退出
+> ```
+>
+> 
+
+② 配置 `core-site.xml`
+
+> ```shell
+> cd hadoop-2.7.2/etc/hadoop
+> vim core-site.xml 
+> 『
+> configuration>
+>         <!-- 指定HDFS中NameNode的地址 -->
+>         <property>
+>                 <name>fs.defaultFS</name>
+>                  <value>hdfs://hadoop1:9000</value>
+>         </property>
+>
+>         <!-- 指定Hadoop运行时产生文件的存储目录 -->
+>         <property>
+>                 <name>hadoop.tmp.dir</name>
+>                 <value>/usr/local/module/hadoop-2.7.2/data/tmp</value>
+>         </property>
+> </configuration>
+> 』
+> ```
+>
+> 
+
+③ 配置 `hdfs-site.xml`
+
+> ```shell
+> cd hadoop-2.7.2/etc/hadoop
+> vim hdfs-site.xml
+> 『
+> <configuration>
+>         <!-- 指定HDFS副本的数量 -->
+>         <property>
+>                 <name>dfs.replication</name>
+>                 <value>1</value>
+>         </property>
+> </configuration>
+> 』
+> ```
+>
+> 
+
+2）、启动集群
+
+① 格式化 `NameNode` （第一次启动时需要格式化，以后就不需要了）
+
+> ```shell
+> cd hadoop-2.7.2/bin
+> hdfs namenode -format      # 格式化 NameNode
+> # 在格式化过程中，如果有任何提示，比如已经格式化过，是否重新格式化，这时候你就需要重新格式化
+> ```
+
+**注意：**
+
+> 格式化 NameNode ，会产生新的集群 id，导致 NameNode 和 DataNode 的集群 id 不一致，集群找不到以往的数据。所以，格式化 NameNode 时，一定要先删除 data 数据和 log 日志，然后再格式化 NameNode
+
+② 启动 `NameNode`
+
+> ```shell
+> cd hadoop-2.7.2/sbin
+> hadoop-daemon.sh start namenode    # 启动 NameNode
+> jps
+> 9233 NameNode      # 证明启动成功
+> 9321 Jps
+> ```
+>
+> 
+
+③ 启动 `DataNode`
+
+> ```shell
+> cd hadoop-2.7.2/sbin
+> hadoop-daemon.sh start datanode      # 启动 DataNode
+> jps
+> 9233 NameNode
+> 9540 Jps
+> 9469 DataNode     # 证明启动成功
+> ```
+>
+> 
+
+3）、查看集群
+
+① 查看是否启动成功
+
+> ```shell
+> jps
+> 9233 NameNode
+> 9540 Jps
+> 9469 DataNode     # 证明启动成功
+> ```
+>
+> 
+
+② web 端查看 HDFS 文件系统
+
+> `http://192.168.148.141:50070`
+
+4）、操作集群
+
+① 在 HDFS 文件系统上创建一个 input 文件夹
+
+> `./bin/hdfs dfs -mkdir -p /usr/heping/input`
+
+② 将测试文件内容上次到文件系统上
+
+> `./bin/hdfs dfs -put wcinput/wc.input /user/heping/input`
+>
+> 第一个路径是测试文件在本地的路径，第二个路径是 HDFS 文件系统上的路径
+
+③ 运行 MapReduce 程序，执行 WordCount 案例
+
+> `./bin/hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.2.jar wordcount /user/heping/input/ /user/heping/output`
+>
+> 前后两个输入和输出的路径都是 HDFS 文件系统上的路径
+
+④ 查看输出结果
+
+> `./bin/hdfs dfs -cat /user/heping/output/p*`
+> James	1
+> Jordan	1
+> curry	1
+> heping	2
+> kevin	1
 
 
 

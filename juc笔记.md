@@ -1608,7 +1608,52 @@ public class TestScheduledThreadPool {
 }
 ```
 
+#### 15、Fork/Join 框架-工作窃取
 
+> - Fork/Join 框架：就是在必要的情况下，将一个大任务，进行拆分（fork）成若干个小任务（拆到不可再拆时），再将一个个的小任务运算的结果进行 join 汇总。 
+
+```java
+public class TestForkJoinPool {
+    public static void main(String[] args) {
+        // ForkJoin 框架需要 ForkJoinPool 的支持
+        ForkJoinPool pool = new ForkJoinPool();
+        ForkJoinTask<Long> task = new ForkJoinSumCalculate(0L, 100000000L);
+        Long result = pool.invoke(task);
+        System.out.println(result);
+    }
+}
+
+class ForkJoinSumCalculate extends RecursiveTask<Long> {
+
+    private long start;
+    private long end;
+    private static final long THRESHOLD = 10000L; // 临界值
+
+    public ForkJoinSumCalculate(long start, long end) {
+        this.start = start;
+        this.end = end;
+    }
+
+    @Override
+    protected Long compute() {
+        long length = end - start;
+        if (length <= THRESHOLD) {  // 小于等于临界值，直接计算和
+            long sum = 0L;
+            for (long i = start; i < end; i++) {
+                sum += i;
+            }
+            return sum;
+        } else {
+            // 进行拆分
+            long middle = (start + end) / 2;
+            ForkJoinSumCalculate left = new ForkJoinSumCalculate(start,middle);
+            left.fork();  // 进行拆分，同时压入线程队列
+            ForkJoinSumCalculate right = new ForkJoinSumCalculate(middle + 1, end);
+            right.fork();
+            return left.join() + right.join();
+        }
+    }
+```
 
 
 

@@ -89,7 +89,9 @@ Hadoop 三大发行版本：『Apache』 、『Cloudera』 、『Hortonworks』
 
 
 
-![YARN架构图](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/YARN%E6%9E%B6%E6%9E%84%E5%9B%BE.png?q-sign-algorithm=sha1&q-ak=AKIDZITLCJPWLRCnM5cINcxBIAkReIWq1OlZ&q-sign-time=1561898909;1561902509&q-key-time=1561898909;1561902509&q-header-list=&q-url-param-list=&q-signature=139cbfcf3a749bf2289c5a686002dabffb685756&x-cos-security-token=d79202255d539beaec8bd89a4a189c78aa00d8a710001)
+![YARN架构图](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/YARN%E6%9E%B6%E6%9E%84%E5%9B%BE.png?q-sign-algorithm=sha1&q-ak=AKID7zjHweurnnEHqmB67L0Ulw3tmNnc1stn&q-sign-time=1562505220;1562508820&q-key-time=1562505220;1562508820&q-header-list=&q-url-param-list=&q-signature=f3a341a0b07d3942d69726f7bce10108d802398c&x-cos-security-token=07e7a2523678a7b4827d1e88033249ac722dfdf110001)
+
+
 
 3）、MapReduce 架构概述
 
@@ -363,6 +365,156 @@ kevin	1
 > curry	1
 > heping	2
 > kevin	1
+
+DataNode 和 NameNode 进程同时只能有一个工作的问题分析：
+
+![DataNode 和 NameNode问题分析](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/DataNode%E5%92%8CNameNode%E9%97%AE%E9%A2%98%E5%88%86%E6%9E%90.png?q-sign-algorithm=sha1&q-ak=AKIDY4ec1O3DSZtWqNFGx2voSAjJbpWGViUE&q-sign-time=1562505102;1562508702&q-key-time=1562505102;1562508702&q-header-list=&q-url-param-list=&q-signature=17e2c31f9c69751087ecb859f94ee7b2f4120f77&x-cos-security-token=c01cb0f51a31f23e3fa28e6cb6f045513fe8368810001)
+
+#### 4、启动 YARN 并运行 MR 程序
+
+要想完成启动 YARN 并运行 MR 程序，需要经过下面几个步骤：
+
+> - 配置集群
+> - 启动测试集群增、删、查
+> - 在 YARN 上执行 WordCount 案例
+
+1）、配置集群
+
+① 配置 `yarn-env.sh`
+
+```shell
+echo $JAVA_HOME
+/usr/local/java/jdk1.8.0_144     # 先看下系统中 JAVA_HOME 的位置
+
+cd hadoop-2.7.2/etc/hadoop
+vim yarn-env.sh
+『
+export JAVA_HOME=xxxxxxxxx
+# 把这里改成 export JAVA_HOME=/usr/local/java/jdk1.8.0_144 
+』
+然后保存退出
+```
+
+② 配置 `yarn-site.xml` 
+
+```Xml
+cd hadoop-2.7.2/etc/hadoop
+vim yarn-site.xml	
+『
+<configuration>
+<!-- Site specific YARN configuration properties -->
+        <!-- Reducer获取数据的方式 -->
+        <property>
+                <name>yarn.nodemanager.aux-services</name>
+                <value>mapreduce_shuffle</value>
+        </property>
+
+        <!-- 指定YARN的ResourceManager的地址 -->
+        <property>
+                <name>yarn.resourcemanager.hostname</name>
+                <value>hadoop1</value>
+        </property>
+</configuration>
+
+』
+```
+
+③ 配置 `mapred-env.sh`
+
+```shell
+echo $JAVA_HOME
+/usr/local/java/jdk1.8.0_144     # 先看下系统中 JAVA_HOME 的位置
+
+cd hadoop-2.7.2/etc/hadoop
+vim mapred-env.sh
+『
+# export JAVA_HOME=/home/y/libexec/jdk1.6.0/
+# 把这里改成 export JAVA_HOME=/usr/local/java/jdk1.8.0_144 
+』
+然后保存退出
+```
+
+④ 将 `mapred-site.xml.template` 重命名为 `mapred-site.xml`
+
+```shell
+cd hadoop-2.7.2/etc/hadoop
+mv mapred-site.xml.template mapred-site.xml
+vim  mapred-site.xml
+『
+<configuration>
+        <!-- 指定MR运行在YARN上 -->
+        <property>
+                <name>mapreduce.framework.name</name>
+                <value>yarn</value>
+        </property>
+</configuration>
+』
+保存退出
+```
+
+2）、启动集群
+
+① 启动前必须保证 NameNode 和 DataNode 已经启动
+
+② 启动 ResourceManager 
+
+```shell
+cd hadoop-2.7.2/sbin
+yarn-daemon.sh start resourcemanager  # 启动 ResourceManager
+[root@hadoop1 sbin]# jps
+6387 Jps
+5638 NameNode
+5757 DataNode
+6174 ResourceManager    # 证明启动成功
+```
+
+③ 启动 NodeManager
+
+```shell
+cd hadoop-2.7.2/sbin
+yarn-daemon.sh start nodemanager  # 启动 NodeManager
+[root@hadoop1 sbin]# jps
+5638 NameNode
+6471 NodeManager    # 证明启动成功
+6552 Jps
+5757 DataNode
+6174 ResourceManager
+```
+
+3）、查看集群
+
+在浏览器查看 YARN ：
+
+> `http://192.168.148.141:8088`
+
+4）、操作集群
+
+① 删除文件系统上的 output 文件夹
+
+> cd hadoop-2.7.2/bin
+>
+> `hdfs dfs -rm -r /user/heping/output`
+
+② 运行 MapReduce 程序，执行 WordCount 案例
+
+> `bin/hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.2.jar wordcount /user/heping/input/ /user/heping/output`
+>
+> 前后两个输入输出路径都是 hdfs 文件系统上的路径
+
+③ 查看运行结果
+
+> `bin/hdfs dfs -cat /user/heping/output/p*`
+> James	1
+> Jordan	1
+> curry	1
+> heping	2
+> kevin	1
+
+
+
+
+
+
 
 
 

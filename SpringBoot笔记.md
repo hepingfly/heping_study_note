@@ -304,11 +304,11 @@ public @interface SpringBootApplication {
 >
 >
 >       - 我们说 **@Import** 注解是给容器导入组件用的，「EnableAutoConfigurationImportSelector」这个类就代表导入哪些组件的选择器，会将所有需要导入的组件以全类名的方式返回，这些组件就会被添加到容器中
->
+>    
 >       - 容器中会导入非常多的自动配置类（xxxAutoConfiguration），这个自动配置类意思就是，比如说你现在用的 webmvc 项目，之前一般我们都会配置一些包扫描器、视图解析器等。现在就不用你自己去配，自动配置类都帮你配置好了。再比如说你现在想用 AOP ，也有 AOP 对应的自动配置类，这样也不用你手动配置 AOP 了（有了自动配置类，免去了我们手动编写配置和注入功能组件的工作）
->
+>    
 >       - 总结一下：<u>SpringBoot 在启动的时候从类路径下的 META-INF/spring.factories 中获取 「EnableAutoConfiguration」指定的值，将这些值作为自动配置类到如到容器中，这样自动配置类就会生效，帮我们进行自动配置工作</u>
->
+>    
 >       - ```java
 >         protected List<String> getCandidateConfigurations(AnnotationMetadata metadata, AnnotationAttributes attributes) {
 >             // 这个方法会去获取 EnableAutoConfiguration 的值，最后返回
@@ -318,7 +318,7 @@ public @interface SpringBootApplication {
 >                 return configurations;
 >             }
 >         ```
->
+>    
 >       - 最后再说一下，上面也说了 @Import 这个注解是导入组件用的，但是具体导入哪些组件由EnableAutoConfigurationImportSelector.class 这个类决定，这个类你点进去源码发现它就是获取类路径下的 META-INF/spring.factories 文件中 「EnableAutoConfiguration」指定的值，所以这个「EnableAutoConfiguration」的值都会被扫描进 spring 容器中，这样就达到了 springboot 帮助我们配置，就不用我们手动配置了
 
 #### 五、使用 Spring Initializer 快速创建 Spring Boot 项目
@@ -332,6 +332,21 @@ public @interface SpringBootApplication {
 > 2、如果你使用的是 eclipse 那么可以   new  —>  Spring start Project  然后按照向导接口
 
 向导会连上 spring 官网帮我们创建好项目，所以如果你使用 spring Initializer 创建 springboot 项目一定要连网。
+
+**Tips：**
+
+使用 springboot 向导创建 springboot 项目的时候，会给你的 pom 文件导入下面这个依赖，主要是用来做单元测试的。
+
+```Xml
+<!--springboot 进行单元测试的 starter-->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-test</artifactId>
+    <scope>test</scope>
+</dependency>
+```
+
+
 
 生成的 springBoot 项目，默认会有两个主要的目录结构，一个是 「src/main/java」 另一个是 「src/main/resources」
 

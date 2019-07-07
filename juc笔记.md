@@ -1492,6 +1492,160 @@ class Number {
 }
 ```
 
+#### 13、线程池
+
+线程池提供了一个线程队列，队列中保存着所有等待状态的线程。避免了创建与销毁线程的额外开销，提高了响应的速度。
+
+**1）、首先我们要知道为什么要使用线程池？**
+
+> ```java
+> public static void main(String[] args) {
+>         ThreadPoolDemo tpd = new ThreadPoolDemo();
+>         new Thread(tpd).start();
+>         new Thread(tpd).start();
+>     }
+> ```
+>
+> 以前我们需要使用一个线程的时候，会去 `new Thread()` 然后启动线程。每次需要用线程的时候我都需要创建一个线程，然后给线程分配任务，然后再启动，当这个线程应用完之后又需要把它销毁掉。如果你任务过多，你去频繁的创建或销毁线程，这样是非常消耗资源的。
+
+**2）、线程池的体系结构：**
+
+```
+java.util.concurrent.Executor：负责线程的使用和调度的根接口
+	|--ExecutorService：子接口，线程池的主要接口
+		|--ThreadPoolExecutor：线程池的实现类
+		|--ScheduledExecutorService：子接口，负责线程的调度
+			|--ScheduledThreadPoolExecutor：继承 ThreadPoolExecutor,实现 ScheduledExecutorService
+```
+
+**3）、工具类**（`Executors`）：
+
+> - `ExecutorService  newFixedThreadPool()` ：创建固定大小的线程池
+> - `ExecutorService newCachedThreadPool()` ：缓存线程池
+> - `ExecutorService newSingleThreadExecutor()` ：创建单个线程池。线程池中只有一个线程。
+> - `ScheduledExecutorService newScheduledThreadPool()` ：创建固定大小的线程，可以延迟或定时的执行任务
+
+```java
+// ------------------------   参数使用 Runnable-------------------------------------
+public class TestThreadPool {
+    public static void main(String[] args) {
+        // 1.创建线程池,线程池里面放 5 个线程
+        ExecutorService pool = Executors.newFixedThreadPool(5);
+        ThreadPoolDemo tpd = new ThreadPoolDemo();
+        // 2.为线程池中的线程分配任务
+        for (int i = 0; i < 10; i++) {  // 10 个线程一起跑
+            pool.submit(tpd);
+        }
+        // 3.关闭线程池
+        pool.shutdown();
+
+    }
+}
+
+class ThreadPoolDemo implements Runnable {
+
+    private int i = 0;
+    @Override
+    public void run() {
+        while (i < 100) {
+            i++;
+            System.out.println(Thread.currentThread().getName() + ":" + i);
+        }
+    }
+}
+
+// ------------------------   参数使用 Callable-------------------------------------
+public class TestThreadPool {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        // 1.创建线程池,线程池里面放 5 个线程
+        ExecutorService pool = Executors.newFixedThreadPool(5);
+        List<Future<Integer>> list = new ArrayList<Future<Integer>>();
+        for (int i = 0; i < 10; i++) {
+            // 2.为线程池中的线程分配任务
+            Future<Integer> future = pool.submit(new Callable<Integer>() {
+                // 跑了 10 个线程，就有 10 个返回值，用 Future 来接收返回值
+                @Override
+                public Integer call() throws Exception {
+                    int sum = 0;
+                    for (int i = 0; i <= 100; i++) {
+                        sum += i;
+                    }
+                    return sum;
+                }
+            });
+            list.add(future);
+        }
+        for (Future future : list) {
+            System.out.println(future.get());
+        }
+        // 3.关闭线程池
+        pool.shutdown();
+    }
+}
+```
+
+#### 14、线程调度
+
+```java
+public class TestScheduledThreadPool {
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        // 创建有 5 个线程的线程池，并且这个线程池可以完成任务调度
+        ScheduledExecutorService scheduledThreadPool = Executors.newScheduledThreadPool(5);
+        // 4 个线程一起跑
+        for (int i = 0; i < 4; i++) {
+            ScheduledFuture<Integer> future = scheduledThreadPool.schedule(new Callable<Integer>() {
+                @Override
+                public Integer call() throws Exception {
+                    int number = new Random().nextInt(100);
+                    System.out.println(Thread.currentThread().getName() + ":" + number);
+                    return number;
+                }
+            }, 1, TimeUnit.SECONDS);  // 延迟 1 秒执行
+            System.out.println(future.get());
+        }
+        scheduledThreadPool.shutdown();
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

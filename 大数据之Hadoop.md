@@ -510,9 +510,126 @@ yarn-daemon.sh start nodemanager  # 启动 NodeManager
 > heping	2
 > kevin	1
 
+#### 5、配置历史服务器
 
+为了查看程序的历史运行情况，需要配置一下历史服务器。
 
+1）、配置 `mapred-site.xml`
 
+```xml
+cd hadoop-2.7.2/etc/hadoop
+vim mapred-site.xml	
+『
+<configuration>
+        <!-- 历史服务器端地址 -->
+        <property>
+                <name>mapreduce.jobhistory.address</name>
+                <value>hadoop1:10020</value>
+        </property>
+        <!-- 历史服务器web端地址 -->
+        <property>
+                <name>mapreduce.jobhistory.webapp.address</name>
+                <value>hadoop1:19888</value>
+        </property>
+</configuration>
+』
+```
+
+2）、启动历史服务器
+
+```shell
+cd hadoop-2.7.2/sbin
+mr-jobhistory-daemon.sh start historyserver
+```
+
+3）、查看历史服务器是否启动
+
+```shell
+jps
+4740 NodeManager
+4965 JobHistoryServer    # 证明历史服务器启动了
+4485 ResourceManager
+5001 Jps
+4202 NameNode
+4300 DataNode
+```
+
+4）、web 端查看 JobHistory
+
+> `http://192.168.148.141:19888`
+
+#### 6、配置日志聚集
+
+日志聚集概念：应用运行完成以后，将程序运行日志信息上传到 HDFS 系统上。
+
+**注意：**
+
+> 开启日志聚集功能，需要重新启动 `NodeManager` 、`ResourceManager` 和 `HistoryManager` 
+
+具体步骤：
+
+1）、配置  `yarn-site.xml` 
+
+```shell
+cd /hadoop-2.7.2/etc
+vim yarn-site.xml
+『
+<configuration>
+        <!-- 日志聚集功能使能 -->
+        <property>
+                <name>yarn.log-aggregation-enable</name>
+                <value>true</value>
+        </property>
+        <!-- 日志保留时间设置7天 -->
+        <property>
+                <name>yarn.log-aggregation.retain-seconds</name>
+                <value>604800</value>
+        </property>
+</configuration>
+』
+```
+
+2）、关闭 NodeManager 、ResourceManager、HistoryManager
+
+```shell
+cd hadoop-2.7.2/sbin
+yarn-daemon.sh stop nodemanager    # 关闭 NodeManager
+yarn-daemon.sh stop resourcemanager  # 关闭 ResourceManager
+mr-jobhistory-daemon.sh stop historyserver   # 关闭 Historyserver
+jps
+7321 Jps
+4202 NameNode
+4300 DataNode
+```
+
+3）、启动 NodeManager 、ResourceManager、HistoryManager
+
+```shell
+cd hadoop-2.7.2/sbin
+yarn-daemon.sh start nodemanager    # 启动 NodeManager
+yarn-daemon.sh start resourcemanager  # 启动 ResourceManager
+mr-jobhistory-daemon.sh start historyserver   # 启动 Historyserver
+```
+
+4）、删除 hdfs 上已经存在的文件输出目录
+
+```shell
+cd hadoop-2.7.2/bin
+hdfs dfs -rm -f /user/heping/output
+```
+
+5）、执行 wordCount 程序
+
+```shell
+cd hadoop-2.7.2
+hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.2.jar wordcount /user/heping/input /user/heping/output
+```
+
+6）、查看日志
+
+```shell
+http://192.168.148.141:19888
+```
 
 
 

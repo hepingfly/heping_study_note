@@ -408,6 +408,36 @@ ln -s /home/hepingfly/bb.txt /home/hepingfly/cc
 >
 > ​	-r：递归复制，用于复制目录
 
+`scp`
+
+> secure copy（安全拷贝）。scp 可以实现服务器与服务器之间的数据拷贝。
+>
+> `scp -r  要拷贝的文件路径（源地址）用户名@ip:目的路径`
+>
+> 示例：
+>
+> `scp -r /usr/local/java/jdk-8u144-linux-x64.tar.gz root@192.168.148.143:/usr/local/java/jdk-8u144-linux-x64.tar.gz` 
+
+`rsync`
+
+> 远程同步工具。 rsync 主要用于备份和镜像。具有速度快、避免复制相同内容和支持符号链接的优点。
+>
+> rsync 和 scp 的区别：用 rsync 做文件的复制要比 scp 的速度快，rsync 只对差异文件做更新。 scp 是把所有文件都复制过去。
+>
+> `rsync -rvl 要拷贝的文件路径（源地址）用户名@ip:目的路径`
+>
+> 选项：
+>
+> -r ：递归
+>
+> -v ：显示复制过程
+>
+> -l ：拷贝符号链接
+>
+> 示例：
+>
+> `rsync -rvl /opt/aa.txt root@192.168.148.141:/opt/aa.txt`
+
 ##### `mv`
 
 > 移动文件或改名

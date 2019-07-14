@@ -631,6 +631,281 @@ hadoop jar share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.2.jar wordcount 
 http://192.168.148.141:19888
 ```
 
+7、集群分发脚本
+
+```bash
+#!/bin/bash
+#1 获取输入参数个数，如果没有参数，直接退出
+pcount=$#
+if((pcount==0)); then
+echo no args;
+exit;
+fi
+
+#2 获取文件名称
+p1=$1
+fname=`basename $p1`
+echo fname=$fname
+
+#3 获取上级目录到绝对路径
+pdir=`cd -P $(dirname $p1); pwd`
+echo pdir=$pdir
+
+#4 获取当前用户名称
+user=`whoami`
+
+#5 循环
+for((host=142; host<144; host++)); do
+        echo ------------------- hadoop$host --------------
+        rsync -rvl $pdir/$fname $user@192.168.148.$host:$pdir
+done
+```
+
+#### 7、集群配置
+
+1）、集群部署规划
+
+|      | 192.168.148.141        | 192.168.148.142                  | 192.168.148.143                 |
+| ---- | ---------------------- | -------------------------------- | ------------------------------- |
+| HDFS | NameNode<br />DataNode | DataNode                         | SecondaryNameNode<br />DataNode |
+| YARN | NodeManager            | ResourceManager<br />NodeManager | NodeManager                     |
+
+上面表格说明：
+
+> 首先有三台服务器（141、142、143），在这三台服务器上我们要去配置  HDFS 和 YARN。首先看 HDFS ，它包括 NameNode、DataNode、SecondaryNameNode ，其次你要知道 NameNode 和 SecondaryNameNode 它们的内存占比基本上就是 1:1 。比如说你服务器内存 128G ，你如果把 NameNode 和 SecondaryNameNode 配置在一台机器上，那么它们各自只能占 64G，这样就会严重影响集群性能。所以应该把这两个放在不同的机器上。再来看 YARN 的配置，YARN 包括 NodeManager 和 ResourceManager 。这个 ResourceManger 是整个集群资源的老大，它也非常占用内存，所以不能和 NameNode、SecondaryNameNode 在一台机器上。
+
+2）、集群配置步骤
+
+PS：下面所有的配置都在一台机器上配置好，然后通过集群分发脚本将所有配置同步到另外两台机器上
+
+① 核心配置文件
+
+配置 `core-site.xml`
+
+```xml
+vim hadoop-2.7.2/etc/hadoop/core-site.xml
+<configuration>
+        <!-- 指定HDFS中NameNode的地址 -->
+        <property>
+                <name>fs.defaultFS</name>
+                 <value>hdfs://192.168.148.141:9000</value>
+        </property>
+
+        <!-- 指定Hadoop运行时产生文件的存储目录 -->
+        <property>
+                <name>hadoop.tmp.dir</name>
+                <value>/usr/local/module/hadoop-2.7.2/data/tmp</value>
+        </property>
+</configuration>
+```
+
+② HDFS 的配置文件
+
+配置 `hadoop-env.sh`
+
+```bash
+vim hadoop-2.7.2/etc/hadoop/hadoop-env.sh
+export JAVA_HOME=/usr/local/java/jdk1.8.0_144
+```
+
+配置 `hdfs-site.xml`
+
+```xml
+vim hadoop-2.7.2/etc/hadoop/hdfs-site.xml
+<configuration>
+        <!-- 指定HDFS副本的数量 -->
+        <property>
+                <name>dfs.replication</name>
+                <value>3</value>
+        </property>
+        <!-- 指定Hadoop辅助名称节点主机配置 -->
+        <property>
+                <name>dfs.namenode.secondary.http-address</name>
+                 <value>192.168.148.143:50090</value>
+        </property>
+</configuration>
+```
+
+③ YARN 的配置文件
+
+配置 `yarn-env.sh`
+
+```bash
+vim hadoop-2.7.2/etc/hadoop/yarn-env.sh
+export JAVA_HOME=/usr/local/java/jdk1.8.0_144
+```
+
+配置 `yarn-site.xml`
+
+```xml
+vim hadoop-2.7.2/etc/hadoop/yarn-site.xml
+<configuration>
+<!-- Site specific YARN configuration properties -->
+        <!-- Reducer获取数据的方式 -->
+        <property>
+                <name>yarn.nodemanager.aux-services</name>
+                <value>mapreduce_shuffle</value>
+        </property>
+
+        <!-- 指定YARN的ResourceManager的地址 -->
+        <property>
+                <name>yarn.resourcemanager.hostname</name>
+                <value>192.168.148.142</value>
+        </property>
+        <!-- 日志聚集功能使能 -->
+        <property>
+                <name>yarn.log-aggregation-enable</name>
+                <value>true</value>
+        </property>
+        <!-- 日志保留时间设置7天 -->
+        <property>
+                <name>yarn.log-aggregation.retain-seconds</name>
+                <value>604800</value>
+        </property>
+</configuration>
+
+```
+
+④ MapReduce 配置文件
+
+配置 `mapred-env.sh`
+
+```bash
+vim hadoop-2.7.2/etc/hadoop/mapred-env.sh
+export JAVA_HOME=/usr/local/java/jdk1.8.0_144
+```
+
+配置 `mapred-site.xml`
+
+```xml
+vim hadoop-2.7.2/etc/hadoop/mapred-site.xml
+<configuration>
+        <!-- 指定MR运行在YARN上 -->
+        <property>
+                <name>mapreduce.framework.name</name>
+                <value>yarn</value>
+        </property>
+        <!-- 历史服务器端地址 -->
+        <property>
+                <name>mapreduce.jobhistory.address</name>
+                <value>192.168.148.141:10020</value>
+        </property>
+        <!-- 历史服务器web端地址 -->
+        <property>
+                <name>mapreduce.jobhistory.webapp.address</name>
+                <value>192.168.148.141:19888</value>
+        </property>
+</configuration>
+```
+
+以上是集群中一台服务器节点的配置，配置完成后就可以使用集群分发脚本将配置同步到另外两台机器上。
+
+#### 8、集群单节点启动
+
+1）、如果集群是第一次启动，需要格式化 NameNode
+
+注意：
+
+格式化 NameNode 时，一定要先删除 data 数据和 log 日志
+
+```shell
+cd hadoop-2.7.2/bin
+hdfs namenode -format      # 格式化 NameNode
+```
+
+2）、在 192.168.148.141 上启动 NameNode 和 DataNode
+
+```shell
+cd hadoop-2.7.2/sbin
+./hadoop-daemon.sh start namenode   # 启动 namenode
+./hadoop-daemon.sh start datanode   # 启动 datanode
+[root@hadoop1 sbin]# jps
+7893 NameNode
+8008 DataNode
+8107 Jps
+```
+
+3）、在 192.168.148.142 上启动 DataNode
+
+```shell
+cd hadoop-2.7.2/sbin
+./hadoop-daemon.sh start datanode   # 启动 datanode
+[root@hadoop2 sbin]# jps
+8035 DataNode
+8119 Jps
+```
+
+4）、在 192.168.148.143 上启动 DataNode
+
+```shell
+cd hadoop-2.7.2/sbin
+./hadoop-daemon.sh start datanode   # 启动 datanode
+[root@hadoop3 sbin]# jps
+6112 Jps
+6077 DataNode
+```
+
+**思考：**
+
+如果我每次都是一个一个节点启动，如果节点数增加到 1000 个怎么办？
+
+#### 9、集群 ssh 配置
+
+1）、ssh 免密登录原理
+
+![ssh免密登录原理](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/ssh%E5%85%8D%E5%AF%86%E7%99%BB%E5%BD%95%E5%8E%9F%E7%90%86.png?q-sign-algorithm=sha1&q-ak=AKID3i5rIVmNuulYgI3dTi7FXIoW8lcogEUH&q-sign-time=1563116545;1563120145&q-key-time=1563116545;1563120145&q-header-list=&q-url-param-list=&q-signature=182c626de3b2a6cf4e281ea2faeb0db763111183&x-cos-security-token=ce9cc00c31cdd2b5d019e935c23a84b08aa110f410001)
+
+2）、生成公钥和私钥
+
+```shell
+首先进入到当前用户的家目录
+cd ~
+ls -la     # 这个命令可以看到在当前目录下有一个 .ssh 的文件夹
+cd .ssh
+ssh-keygen -t rsa   # 生成对应的公钥和私钥
+# -t rsa 表示使用 rsa 加密算法
+# 上面的命令输入完成之后，敲三个回车就会生成两个文件 id_rsa(私钥)    id_rsa.pub(公钥)
+ll
+-rw-------. 1 root root 1675 7月  14 23:15 id_rsa
+-rw-r--r--. 1 root root  394 7月  14 23:15 id_rsa.pub
+-rw-r--r--. 1 root root  397 7月  14 22:37 known_hosts
+```
+
+3）、将公钥拷贝到要免密登录的目标机器上
+
+```shell
+# 我现在需要把公钥拷贝到 192.168.148.142 和 192.168.148.143 这两台机器上
+# 当前机器是 192.168.148.141
+pwd
+/root/.ssh    # 当前用户家目录的 .ssh 文件夹下
+ssh-copy-id 192.168.148.141      # 自己这台机器也配置下，不然使用 ssh 自己登录自己也需要输入密码  
+ssh-copy-id 192.168.148.142
+ssh-copy-id 192.168.148.143
+
+# 现在我去 192.168.148.142 这台机器的 『/root/.ssh』 目录下
+[root@hadoop2 .ssh]# ll
+总用量 8
+-rw-------. 1 root root 394 7月  14 23:30 authorized_keys  # 会生成一个这个文件，这个文件的内容就是 192.168.148.141 机器的公钥 
+-rw-r--r--. 1 root root 397 7月  14 22:37 known_hosts
+
+```
+
+上面的步骤展示了使用公钥和私钥实现免密登录到目标机器上，总结一下：
+
+> 比如说我当前机器是 141 ，然后我想通过 ssh 免密登录到 142 和 143 的机器上，那么我的做法就是，先在 141 机器上生成一对公钥和私钥，然后把公钥拷贝到 142 和 143 机器上，这样就实现了 ssh 免密登录。拷贝后，142 和 143 机器都会生成一个 authorized_keys 文件，里面是 141 的公钥，141 想免密登录 142 和 143 都是通过这个文件来实现的。
+>
+> 那么假如我现在所在机器是 142，我想免密登录 141 和 143 ，你发现是不行的。那么做法就是现在 142 上生成一对公钥和私钥，然后把 142 的公钥拷贝到 141 和 143 上，这样才能实现免密登录。
+
+上面我们配置免密登录时因为 192.168.148.141 上有 NameNode ，它需要和 142、143 进行通信，需要免密登录。同时 192.168.148.142 上有 ResourceManager 它也需要和另外两台机器进行通信，所以也需要免密登录，配置方式和上述步骤类似。
+
+
+
+
+
+
+
+
+
 
 
 

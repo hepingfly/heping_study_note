@@ -10,6 +10,10 @@
 >   - 保证可见性
 >   - 不保证原子性
 >   - 禁止指令重排
+>     - 计算机在执行程序时，为了提高性能，编译器和处理器常常会对指令做重排
+>       - 单线程环境里面确保程序最终执行结果和代码顺序的执行结果一致（意思就是单线程环境不用去关心指令重排）
+>       - 处理器在进行重排序时必须考虑指令之间的**数据依赖性**
+>       - 多线程环境中线程交替执行，由于编译器优化重排的存在，两个线程中使用的变量能否保住一致性是无法确定的，结果无法预测
 
 **谈谈 JMM 是什么**
 
@@ -18,6 +22,8 @@
 > JMM 有三大特性：
 >
 > - 可见性
+>   - 各个线程对主内存中共享变量的操作都是各个线程各自拷贝到自己的工作内存进行操作后再写回到主内存中
+>   - 这就可能存在一个线程A 修改了共享变量 x 的值，但还未写回主内存时，另外一个线程B 又对主内存中同一个共享变量 x 进行操作，但此时 A 线程工作内存中共享变量 x 对线程 B 来说并不可见，这种工作内存与主内存同步延迟现象就造成了可见性问题
 > - 原子性
 > - 有序性
 
@@ -43,6 +49,7 @@
 /**
  * 1.验证 volatile 的可见性
  *    int number = 0; number 变量前面没有加 volatile 关键字修饰，没有可见性
+ 	  添加了 volatile 可以解决可见性问题
  */
 public class VolatileDemo {
     public static void main(String[] args) {
@@ -94,4 +101,125 @@ class MyData {
 >  高并发，举个很简单的例子就是「秒杀」是多个线程同时去访问同一个资源
 >
 > 并行，是多个事情同时去做。比如说你一边写代码，一边听歌，这两个事情就是并行。
+
+#### 2、volatile 不保证原子性
+
+**首先说下原子性指的什么意思？**
+
+> 指的就是不可分割，完整性。也即某个线程正在做某个具体业务时，中间不可以被加塞或者被分割，需要整体完整，要么同时成功，要么同时失败。
+
+**代码证明 volatile 不保证原子性:**
+
+```java
+class MyData {
+    volatile int number = 0;
+    // 这里我让 number 自增，并且共享变量 number 前面加了 volatile
+    public void increase() {
+        number++;
+    }
+}
+public class VolatileDemo {
+    public static void main(String[] args) {
+//        visibility();
+        // 现在我创建了 20 个线程，每个线程都去调用 increase() 方法，每个线程调用 1000 次
+        // 如果 volatile 可以保证原子性的话，等 20 个线程执行完了以后，main 线程拿到 number 的值应该是 20000
+        MyData md = new MyData();
+        for (int i = 0; i < 20; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (int j = 0; j < 1000; j++) {
+                        md.increase();
+                    }
+                }
+            },String.valueOf(i)).start();
+        }
+        // 等上面线程都执行完后，main 线程取得最后结果值
+        // 大于 2 是因为除了上面的 20 个线程以外，还有 main 线程和 GC 线程
+        while (Thread.activeCount() > 2) {
+            // 证明上面的 20 个线程还没计算完，我主线程把 cpu 执行权交出去
+            Thread.yield();
+        }
+        System.out.println(Thread.currentThread().getName() + "finally number value" + md.number);    // 最后这里打印的值都不是 20000 证明 volatile 不能保证原子性
+
+    }
+}
+```
+
+**解释一下 volatile 为什么保证不了原子性：**
+
+![volatile不保证原子性](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/volatile%E4%B8%8D%E4%BF%9D%E8%AF%81%E5%8E%9F%E5%AD%90%E6%80%A7.png?q-sign-algorithm=sha1&q-ak=AKIDT71QAX7DHcSzj9gixOYuYMS1dFFuP4J5&q-sign-time=1563089598;1563093198&q-key-time=1563089598;1563093198&q-header-list=&q-url-param-list=&q-signature=b320de7d1037d0c9e55baa75d2d8bb2c88482e00&x-cos-security-token=a54f8e50f0daad8049fd2ac40e1e339d1111fc9b10001)
+
+#### 3、volatile 不保证原子性问题解决
+
+方式：
+
+使用 AtomicInteger  这个类可以保证原子性
+
+```java
+public class VolatileDemo {
+    public static void main(String[] args) {
+//        visibility();
+        // 现在我创建了 20 个线程，每个线程都去调用 increase() 方法，每个线程调用 1000 次
+        MyData md = new MyData();
+        for (int i = 0; i < 20; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (int j = 0; j < 1000; j++) {
+                        md.atomicIncrease();
+                    }
+                }
+            },String.valueOf(i)).start();
+        }
+        // 等上面线程都执行完后，main 线程取得最后结果值
+        // 大于 2 是因为除了上面的 20 个线程以外，还有 main 线程和 GC 线程
+        while (Thread.activeCount() > 2) {
+            // 证明上面的 20 个线程还没计算完，我主线程把 cpu 执行权交出去
+            Thread.yield();
+        }
+        System.out.println(Thread.currentThread().getName() + "finally number value" + md.atomicInteger);
+    }
+}
+
+class MyData {
+	// AtomicInteger 可以保证原子性
+    AtomicInteger atomicInteger = new AtomicInteger();
+    public void atomicIncrease() {
+        atomicInteger.getAndIncrement();
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

@@ -295,7 +295,7 @@ kevin	1
 
 **注意：**
 
-> 格式化 NameNode ，会产生新的集群 id，导致 NameNode 和 DataNode 的集群 id 不一致，集群找不到以往的数据。所以，格式化 NameNode 时，一定要先删除 data 数据和 log 日志，然后再格式化 NameNode
+> 格式化 NameNode ，会产生新的集群 id，导致 NameNode 和 DataNode 的集群 id 不一致，集群找不到以往的数据。所以，格式化 NameNode 时，一定要先删除 data 数据和 log 日志，然后再格式化 NameNode（PS：格式化之前一定要先停止上次启动的所有 namenode 和 datanode 进程，然后再删除 data 和 log 数据）
 
 ② 启动 `NameNode`
 
@@ -898,15 +898,56 @@ ssh-copy-id 192.168.148.143
 
 上面我们配置免密登录时因为 192.168.148.141 上有 NameNode ，它需要和 142、143 进行通信，需要免密登录。同时 192.168.148.142 上有 ResourceManager 它也需要和另外两台机器进行通信，所以也需要免密登录，配置方式和上述步骤类似。
 
+#### 10、集群群起
 
+上面之所以要配置一下 ssh 其实是为我们群起集群服务的。
 
+1）、配置 slaves 
 
+```shell
+cd hadoop-2.7.2/etc/hadoop
+vim slaves           # 首先删除里面自带的 localhost
+192.168.148.141      # 把 datanode 所在的节点都配置在这里
+192.168.148.142
+192.168.148.143
+```
 
+**注意：**
 
+> slaves 这个文件开头和结尾不允许有空格，文件中也不允许有空行
 
+上面的配置只是在一台服务器节点上配置，配置好之后我们就可以使用集群分发脚本同步到另外两台机器上。
 
+2）、启动集群
 
+①如果集群是第一次启动需要格式化 NameNode（格式化之前一定要先停止上次启动的所有 NameNode 和 DataNode 进程，然后再删除 data 和 log 数据）
 
+> 格式化 namenode 命令前面有说过
+>
+
+② 启动 HDFS
+
+```shell
+cd hadoop-2.7.2/sbin
+./start-dfs.sh
+jps
+4660 NameNode
+7878 Jps
+4794 DataNode
+
+# 这样三台机器上的 namenode 和 datanode secondarynamenode 都会被启动起来
+```
+
+③ 启动 YARN
+
+```shell
+cd hadoop-2.7.2/sbin
+./start-yarn.sh
+```
+
+**注意：**
+
+> NameNode 和 ResourceManager 如果不是在同一台机器，不能在 NameNode 上启动 YARN，应该在 ResourceManager 上启动 YARN
 
 
 

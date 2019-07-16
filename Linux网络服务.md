@@ -87,11 +87,72 @@ DNS1=8.8.8.8            # DNS
 
 `/etc/services`
 
+### 7、网关和路由
+
+> `route -n` 查看系统中路由表信息
+
+添加和删除网关：
+
+1）、临时生效
+
+> 网关
+>
+> 添加： `route add default gw ip地址`
+>
+> 删除：`route del default gw ip地址`
+
+2）、永久生效
+
+> 网关
+>
+> `/etc/sysconfig/network-scripts/ifcfg-eth0`
+
+8、网络常见命令
 
 
 
+> `nslookup`
+>
+> 域名解析测试命令
+
+配置 DNS
+
+> 配置文件：
+>
+> 局部（如果有多块网卡这种局部配置就有问题了）：
+>
+> `/etc/sysconfig/network-scripts/ifcfg-eth0`
+>
+> DNS=ip地址
+>
+> 全局：
+>
+> `/etc/resolv.conf`
+>
+> nameserver ip地址
+
+```shell
+[root@hadoop1 sbin]# nslookup www.baidu.com
+Server:		192.168.148.2
+Address:	192.168.148.2#53
+
+Non-authoritative answer:
+www.baidu.com	canonical name = www.a.shifen.com.
+Name:	www.a.shifen.com
+Address: 183.232.231.174
+Name:	www.a.shifen.com
+Address: 183.232.231.172
+```
 
 
+
+> arp 地址解析协议，将 ip 地址解析成 MAC 地址
+>
+> 选项：
+>
+> ​	`-a` ：查看所有
+>
+> ​	`-d  ip地址`：删除某条 ARP 记录
 
 
 

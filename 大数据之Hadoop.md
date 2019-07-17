@@ -1024,6 +1024,120 @@ cd hadoop-2.7.2/sbin
 | `-`      | 代表连续的时间范围。比如 `"0 5 * * 1-6"`  ,代表在周一到周六凌晨 5 点 0 分执行命令 |
 | `        | 代表每隔多久执行一次。比如 `"*/10 * * * *"` 代表每隔 10 分钟就执行一遍命令 |
 
+#### 14、集群时间同步
+
+**先说集群时间为什么要进行同步？**
+
+> 比如说我现在有三台服务器，假如说这三台机器时间不一致，就可能出现问题。我在这三台服务器上部署了集群，现在要在一点钟执行一个任务，但是这是哪个机器的时间都不一样，这样就出问题了。
+
+**时间同步方式：**
+
+> 找一个机器作为时间服务器，所有的机器与这台机器的时间进行定时的同步，比如：每隔十分钟，同步一次时间。
+
+**配置时间同步步骤：**
+
+1）、时间服务器配置（必须是 root 用户）
+
+① 检查 ntp 是否安装
+
+```shell
+[root@hadoop1 桌面]# rpm -qa |grep ntp
+fontpackages-filesystem-1.41-1.1.el6.noarch       # 出现下面三行，证明安装
+ntpdate-4.2.6p5-10.el6.centos.x86_64
+ntp-4.2.6p5-10.el6.centos.x86_64
+```
+
+② 修改 ntp 配置文件
+
+> `vim /etc/ntp.conf`
+
+修改内容：
+
+a）、授权 `192.168.1.0-192.168.1.255` 网段上所有机器可以从这条机器上查询和同步时间
+
+> 表现在配置文件中的操作就是：
+>
+> ```shell
+> # Hosts on local network are less restricted.
+> restrict 192.168.1.0 mask 255.255.255.0 nomodify notrap    #把这行注释打开
+>          192.168.148.0      # 把这里的网段改成 148 网段
+> ----------------------------------------------------------------------------
+> 即：
+> restrict 192.168.148.0  mask 255.255.255.0 nomodify notrap 
+> ```
+>
+> **注意：**
+>
+> 把原来配置文件中注释行打开后，它的网络 ip 是 `192.168.1.0`   这里需要根据你机器具体的 ip 网段修改下，比如说我机器集群的网段都在 `192.168.148.x`  那么我就把这里改成 `192.168.148.0`  开始
+
+b）、集群在局域网中，不使用其他互联网上的时间
+
+> 表现在配置文件中的操作就是：
+>
+> ```shell
+> # Use public servers from the pool.ntp.org project.
+> # Please consider joining the pool (http://www.pool.ntp.org/join.html).
+> server 0.centos.pool.ntp.org iburst
+> server 1.centos.pool.ntp.org iburst      # 需要把这四行全部注释掉
+> server 2.centos.pool.ntp.org iburst
+> server 3.centos.pool.ntp.org iburst
+> ----------------------------------------------------------------------------
+> 即：
+> #server 0.centos.pool.ntp.org iburst
+> #server 1.centos.pool.ntp.org iburst      
+> #server 2.centos.pool.ntp.org iburst
+> #server 3.centos.pool.ntp.org iburst
+> ```
+>
+> 
+
+c）、当该节点丢失网络连接，依然可以采用本地时间作为时间服务器为集群中其他节点提供时间同步
+
+> ```shell
+> server 127.127.1.0
+> fudge 127.127.1.0 stratum 10      # 把这两行直接粘贴到配置文件最后即可
+> ```
+>
+> 
+
+③ 修改 `/etc/sysconfig/ntpd`
+
+> ```shell
+> # 添加如下内容
+> SYNC_HWCLOCK=yes       # 让硬件时间与系统时间一起同步
+> ```
+>
+> 其实就是读取硬件的时钟信息
+
+④ 重新启动 ntpd 服务
+
+> `service htpd restart`
+>
+> ```shell
+> [root@hadoop1 桌面]# service ntpd status
+> ntpd (pid  7758) 正在运行...     # 证明 ntpd 正在运行
+> ```
+>
+> 
+
+⑤ 设置 ntpd 服务开机启动
+
+> `chkconfig ntpd on`        
+
+2）、其他机器配置（必须 root 用户）
+
+① 在其他机器配置 10 分钟与时间服务器同步一次
+
+> `crontab -e`
+>
+> 编写的定时任务如下：
+>
+> ```
+> */10 * * * * /usr/sbin/ntpdate 192.168.148.141
+> ```
+>
+> 
+
 
 
 

@@ -191,6 +191,216 @@ class MyData {
 }
 ```
 
+#### 4、单例模式在多线程环境下可能会出现线程安全问题
+
+```java
+public class SingletonDemo {
+
+    private static SingletonDemo instance = null;
+    private SingletonDemo() {
+        System.out.println(Thread.currentThread().getName() + ":" + "创建实例");
+    }
+    public static SingletonDemo getInstance() {
+        if (instance == null) {
+            instance = new SingletonDemo();
+        }
+        return instance;
+    }
+    public static void main(String[] args) {
+        for (int i = 0; i < 10; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println(SingletonDemo.getInstance() == SingletonDemo.getInstance());
+                }
+            },"线程" + i).start();
+        }
+    }
+}
+```
+
+> 上面的代码为单例模式的写法，如果多个线程同时去执行就可能出问题，单例模式按理说构造器只会调用一次，但是在多线程环境下就会出现调用多次构造器的情况，那么这就违背了单例模式的设计初衷。一种解决方法就是在创建单例对象的时候加上 synchronized 关键字，但这并不是最优的方法。加上 synchronized 关键字后，一个线程握住锁后，别的线程都要阻塞，影响程序性能。
+
+#### 5、单例模式 volatile 分析
+
+**DCL 版单例模式：**
+
+上面我们说了单例模式在多线程下，可能会出现线程安全问题。下面我们来使用 DCL 来解决线程安全问题
+
+```java
+public class SingletonDemo {
+
+    private static SingletonDemo instance = null;
+    private SingletonDemo() {
+        System.out.println(Thread.currentThread().getName() + ":" + "创建实例");
+    }
+    //DCL（Double Check Lock） 双端检索机制
+    public static SingletonDemo getInstance() {
+        if (instance == null) {
+            // 所谓双端检索机制，就是在加锁前后我都进行了一次判断
+            synchronized (SingletonDemo.class) {
+                if (instance == null) {
+                    instance = new SingletonDemo();
+                }
+            }
+        }
+        return instance;
+    }
+    public static void main(String[] args) {
+        for (int i = 0; i < 10; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println(SingletonDemo.getInstance() == SingletonDemo.getInstance());
+                }
+            },"线程" + i).start();
+        }
+    }
+}
+```
+
+就是在加锁的前后，我都进行一次判断。这样你在运行的时候，就发现在多线程环境下，构造器也只会被调用一次，对象只会创建一次。但是这种方式就完全解决线程安全问题了吗？
+
+答案是，否。上面的写法，可能在 99.9% 的情况下都是没有问题的。但是在底层可能会出现指令重排的情况，因此上面的写法还是有 0.1% 的概率会出现异常的。
+
+**说明：**
+
+> DCL（双端检索机制）不一定线程安全，原因是有指令重排序的存在，加入 volatile 可以禁止指令重排
+>
+> 原因在于某一个线程执行到第一次检测，读取到 instance 不为 null 时，instance 的**引用对象可能没有完成初始化**
+>
+> ```
+> 举个例子：
+> 公司现在有一个工位，这个工位现在是空的，根本没有人坐(这种情况就对应 instance==null),还有一种情况就是这个工位现在是空的，但是已经有人坐了，只是这个人现在还没有来，工位上也没有给它放插线板，网线等(这种情况就对应 instance != null，但是这块内存空间已经分配出去了，只是对象还没完成初始化)
+> ```
+>
+> `instance = new SingletonDemo()` 可以分为以下 3 步完成：
+>
+> ```
+> memory=allocate() // 1.分配对象内存空间
+> instance(memory)  // 2.初始化对象
+> instance=memory   // 3.设置 instance 指向刚分配的内存地址，此时 instance != null
+> ```
+>
+> 但是步骤2 和步骤3 **不存在数据依赖关系** ，因此可能会存在指令重排的情况。而且无论是重排前还是重排后程序的执行结果在单线程中并没有改变，因此这种重排优化是允许的。
+>
+> ```
+> memory=allocate() // 1.分配对象内存空间
+> instance=memory   // 3.设置 instance 指向刚分配的内存地址，此时 instance != null ，但是对象还没初始化完成
+> instance(memory)  // 2.初始化对象
+> ```
+>
+> **所以当一条线程访问 instance 不为 null 时，由于 instance 实例未必已经初始化完成，也就造成了线程安全问题**
+
+所以单例模式在多线程环境下，最终的写法：
+
+**双端检索机制 + volatile**
+
+```java
+public class SingletonDemo {
+	
+    // 加上 volatile 关键字，禁止指令重排
+    private static volatile SingletonDemo instance = null;
+    private SingletonDemo() {
+        System.out.println(Thread.currentThread().getName() + ":" + "创建实例");
+    }
+    //DCL（Double Check Lock） 双端检索机制
+    public static SingletonDemo getInstance() {
+        if (instance == null) {
+            // 所谓双端检索机制，就是在加锁前后我都进行了一次判断
+            synchronized (SingletonDemo.class) {
+                if (instance == null) {
+                    instance = new SingletonDemo();
+                }
+            }
+        }
+        return instance;
+    }
+    public static void main(String[] args) {
+        for (int i = 0; i < 10; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println(SingletonDemo.getInstance() == SingletonDemo.getInstance());
+                }
+            },"线程" + i).start();
+        }
+    }
+}
+```
+
+#### 6、CAS 是什么
+
+比较并交换（Compare And Swap）
+
+```java
+public class CASDemo {
+    public static void main(String[] args) {
+        // 初始值设置成 5
+        AtomicInteger atomicInteger = new AtomicInteger(5);
+        // 中间省略 main 线程做的一系列操作...
+
+        /**
+         * 第一个参数：expect：期望值
+         * 第二个参数：update：更新值
+         * 如果主内存中的值是 5 我才把它改成 100
+         */
+        boolean flag = atomicInteger.compareAndSet(5, 100);
+        System.out.println(flag);  // true
+        System.out.println(atomicInteger.get()); // 100
+
+
+        boolean flag2 = atomicInteger.compareAndSet(5, 200);
+        System.out.println(flag2);  // false
+        System.out.println(atomicInteger.get());  // 100
+
+        // 总结一下就是线程的期望值和物理内存的真实值一样，就修改为更新值
+        // 如果线程的期望值和物理内存的真实值不一样，则不修改
+    }
+}
+```
+
+> - 真实值和期望值相同，修改成功
+> - 真实值和期望值不同，修改失败
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

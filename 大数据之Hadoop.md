@@ -1227,31 +1227,233 @@ HDFS（Hadoop Distributed File System）它是一个文件系统，用于存储�
 > - Client 提供一些命令来管理 HDFS，比如 NameNode 格式化
 > - Client 可以通过一些命令来访问 HDFS，比如对 HDFS 增删改查操作
 
+#### 5、HDFS 块的大小设置
 
+HDFS 中的文件在物理上是分块存储（Block），块的大小可以通过配置参数（dfs.blocksize）来规定，默认大小在 Hadoop2.x 版本中是 128M ，老版本（Hadoop1.x）是 64M
 
+> ①HDFS 中的文件存在一个一个的 block 上
+>
+> ② 我想往 block 里面写东西，寻址时间约为 10ms，即查找到目标 block 的时间为 10ms
+>
+> ③ **寻址时间为传输时间的 1% 时，为最佳状态。** 因此，传输时间 ：10ms/0.01=1000ms=1s
+>
+> ④ 目前磁盘的传输速率普遍为 100MB/s 
+>
+> ⑤ block 大小： 1s * 100MB/s = 100MB       约为 100MB 左右
 
+**为什么块的大小不能设置太小，也不能设置太大？**
 
+> - HDFS 的块设置太小，会增加寻址时间，程序一直在找块的开始位置
+>   - 比如说你有几百万个块，那么我想找到其中一个块往里面写寻址时间就会很长
+> - 如果块设置的太大，从**磁盘传输数据的时间**会明显**大于定位这个块开始位置所需时间**。导致程序在处理这块数据时，会非常慢
 
+**总结：**
 
+==HDFS 块的大小设置主要取决于磁盘的传输速率==
 
+#### **6、HDFS 相关 shell命令**
 
+1）、基本语法
 
+> `bin/hadoop fs 具体命令`       或者      `bin/hdfs dfs 具体命令`
+>
+> dfs 是 fs 的实现类
 
+2）、常用命令
 
+① 先需要启动 hadoop 集群
 
+> ```shell
+> [root@hadoop1 sbin]# pwd
+> /usr/local/module/hadoop-2.7.2/sbin
+> [root@hadoop1 sbin]# ./start-dfs.sh
+> -------------------------------------
+> [root@hadoop2 sbin]# pwd
+> /usr/local/module/hadoop-2.7.2/sbin
+> [root@hadoop2 sbin]# ./start-yarn.sh
+> ```
+>
+> 
 
+② `-help`
 
+> 显示这个命令的帮助信息 
 
+```shell
+[root@hadoop1 bin]# hadoop fs -help rm
+-rm [-f] [-r|-R] [-skipTrash] <src> ... :
+  Delete all files that match the specified file pattern. Equivalent to the Unix
+  command "rm <src>"
+                                                                                 
+  -skipTrash  option bypasses trash, if enabled, and immediately deletes <src>   
+  -f          If the file does not exist, do not display a diagnostic message or 
+              modify the exit status to reflect an error.                        
+  -[rR]       Recursively deletes directories 
+```
 
+③ `-ls`
 
+> 显示目录信息 
 
+```shell
+[root@hadoop1 bin]# hadoop fs -ls /
+Found 2 items
+-rw-r--r--   3 root supergroup  197657687 2019-07-16 19:27 /hadoop-2.7.2.tar.gz
+drwxr-xr-x   - root supergroup          0 2019-07-16 19:26 /wcinput
+```
 
+④ `-mkdir`
 
+> 在 HDFS 上创建目录
 
+```shell
+[root@hadoop1 bin]# hadoop fs -mkdir -p /shp/heping/shuai
+[root@hadoop1 bin]# hadoop fs -ls -R /shp
+drwxr-xr-x   - root supergroup          0 2019-07-22 23:07 /shp/heping
+drwxr-xr-x   - root supergroup          0 2019-07-22 23:07 /shp/heping/shuai
+```
 
+⑤ `-moveFromLocal`
 
+> 从本地剪切粘贴到 HDFS
 
+```shell
+# 第一个路径是本地文件路径，第二个是 hdfs 文件路径
+[root@hadoop1 bin]# hadoop fs -moveFromLocal ./shp.txt /shp/heping/shuai
+[root@hadoop1 bin]# hadoop fs -ls /shp/heping/shuai
+Found 1 items
+-rw-r--r--   3 root supergroup          6 2019-07-22 23:14 /shp/heping/shuai/shp.txt
 
+# 同时你会发现本地的 shp.txt 没有了，被剪切掉了
+```
+
+⑥ `-appendToFile`
+
+> 追加一个文件到已经存在的文件末尾
+
+```shell
+# 第一个路径是本地文件路径，第二个是 hdfs 文件路径
+[root@hadoop1 bin]# hadoop fs -appendToFile heping.txt /shp/heping/shuai/shp.txt
+```
+
+⑦ `-cat`
+
+> 显示文件内容
+
+```shell
+[root@hadoop1 bin]# hadoop fs -cat /shp/heping/shuai/shp.txt
+hello
+```
+
+⑧ `-chgrp 、 -chmod 、-chown` 
+
+> 修改文件所属权限，和 Linux 中用法一样
+>
+
+```shell
+[root@hadoop1 bin]# hadoop fs -ls -h /shp/
+Found 1 items
+drwxr-xr-x   - root supergroup          0 2019-07-22 23:07 /shp/heping
+[root@hadoop1 bin]# hadoop fs -chgrp -R root /shp/heping
+[root@hadoop1 bin]# hadoop fs -ls -h /shp/
+Found 1 items
+drwxr-xr-x   - root root          0 2019-07-22 23:07 /shp/heping
+```
+
+⑨ `-copyFromLocal`
+
+> 从本地文件系统中拷贝文件到 HDFS 中
+
+```shell
+# 第一个路径是本地文件路径，第二个路径是 hdfs 上路径
+[root@hadoop1 bin]# hadoop fs -copyFromLocal ./hello.txt /shp/heping/shuai
+[root@hadoop1 bin]# hadoop fs -ls /shp/heping/shuai
+Found 2 items
+-rw-r--r--   3 root root          3 2019-07-22 23:41 /shp/heping/shuai/hello.txt
+-rw-r--r--   3 root root          6 2019-07-22 23:26 /shp/heping/shuai/shp.txt
+
+# 同时你会发现本地的 hello.txt 还存在
+```
+
+⑩ `-copyToLocal`
+
+> 从 HDFS 拷贝到本地
+
+```shell
+# 第一个参数是 hdfs 中的路径,第二个参数是本地路径
+[root@hadoop1 bin]# hadoop fs -copyToLocal /shp/heping/shuai/shp.txt ./
+```
+
+11 `-cp`
+
+> 从 HDFS 的一个路径拷贝到 HDFS 的另一个路径
+
+```shell
+[root@hadoop1 bin]# hadoop fs -cp /shp/heping/shuai/shp.txt /shp/heping
+[root@hadoop1 bin]# hadoop fs -ls /shp/heping
+Found 2 items
+-rw-r--r--   3 root root          6 2019-07-22 23:54 /shp/heping/shp.txt
+drwxr-xr-x   - root root          0 2019-07-22 23:41 /shp/heping/shuai
+```
+
+12 `-mv`
+
+> 在 HDFS 目录中移动文件
+>
+
+```shell
+[root@hadoop1 bin]# hadoop fs -mv /shp/heping/shp.txt /
+[root@hadoop1 bin]# hadoop fs -ls /
+Found 4 items
+-rw-r--r--   3 root supergroup  197657687 2019-07-16 19:27 /hadoop-2.7.2.tar.gz
+drwxr-xr-x   - root supergroup          0 2019-07-22 23:07 /shp
+-rw-r--r--   3 root root                6 2019-07-22 23:54 /shp.txt
+drwxr-xr-x   - root supergroup          0 2019-07-16 19:26 /wcinput
+```
+
+13 `-get`
+
+> 等同于 copyToLocal   就是从 hdfs 下载文件到本地
+
+```shell
+# 第一个参数是 hdfs 中的路径,第二个参数是本地路径
+[root@hadoop1 bin]# hadoop fs -get /shp.txt ./
+```
+
+14 `-getmerge`
+
+> 合并下载多个文件，比如 hdfs 的目录 /shp 目录下有多个文件，那么我就可以把这几个文件合并在一起下载下来
+
+```shell
+# 前面的路径是 hdfs 上文件路径，后面是本地文件路径
+[root@hadoop1 bin]# hadoop fs -getmerge /heping.txt /shp.txt ./merge.txt
+```
+
+15 `-put`
+
+> 等同于 copyFromLocal
+
+```shell
+# 第一个路径是本地文件路径，第二个是 hdfs 文件路径
+[root@hadoop1 bin]# hadoop fs -put ./heping.txt /
+```
+
+16 `-tail`
+
+> 显示文件末尾
+
+```shell
+[root@hadoop1 bin]# hadoop fs -tail /shp.txt
+hello
+```
+
+17 `-rm`
+
+> 删除文件或文件夹
+
+```shell
+[root@hadoop1 bin]# hadoop fs -rm /shp.txt
+```
 
 
 

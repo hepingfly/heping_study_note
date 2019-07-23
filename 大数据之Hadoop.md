@@ -1455,7 +1455,129 @@ hello
 [root@hadoop1 bin]# hadoop fs -rm /shp.txt
 ```
 
+#### 7、HDFS 客户端环境准备
 
+1）、首先根据自己电脑操作系统拷贝对应的编译后的 hadoop 的 jar 包到非中文路径下（区分 win10 编译过的 hadoop 中 jar 包、win7编译过的 hadoop 中 jar 包、linux 编译过的 hadoop 中 jar 包）
+
+2）、配置 HADOOP 环境变量
+
+3）、创建项目，添加依赖
+
+```xml
+<dependencies>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>RELEASE</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.8.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <version>2.7.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client</artifactId>
+            <version>2.7.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-hdfs</artifactId>
+            <version>2.7.2</version>
+        </dependency>
+    </dependencies>
+```
+
+#### 8、java 代码访问 hdfs
+
+```java
+public class HDFSClient {
+    public static void main(String[] args) throws URISyntaxException, IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        //1.获取 hdfs 客户端对象
+        /**
+         * 第一个参数：hdfs 中 namenode 的地址
+         * 第二个参数：配置类
+         * 第三个参数：用什么用户去访问 hdfs
+         */
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration, "root");
+
+        //2.在 hdfs 上创建路径
+        client.mkdirs(new Path("/shp/love"));
+
+        //3.关闭资源
+        client.close();
+        System.out.println("访问结束");
+    }
+}
+```
+
+### HDFS 的 API 操作
+
+#### 1、文件上传
+
+```java
+@Test
+    public void testCopyFromLocalFile() throws URISyntaxException, IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        // 1.获取 hdfs 对象
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration, "root");
+
+        // 2.执行上传 API
+        // 第一个参数是本地文件路径，第二个参数是 hdfs 上文件路径
+        client.copyFromLocalFile(new Path("/Users/shenheping/Desktop/hello.txt"),new Path("/shp"));
+
+        //3.关闭资源
+        client.close();
+    }
+```
+
+**参数优先级：**
+
+① 我们将 `hdfs-site.xml` 拷贝到项目的类路径下
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+<configuration>
+	<property>
+		<name>dfs.replication</name>
+        <value>1</value>
+	</property>
+</configuration>
+```
+
+这样你项目在运行的时候它会自动加载类路径下的配置文件，然后你在上传一个文件到 hdfs 上，发现副本数就变成了 1
+
+② 直接在代码中设置副本数
+
+```java
+@Test
+    public void testCopyFromLocalFile() throws URISyntaxException, IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        configuration.set("dfs.replication","2");
+        // 1.获取 hdfs 对象
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration, "root");
+
+        // 2.执行上传 API
+        client.copyFromLocalFile(new Path("/Users/shenheping/Desktop/hello.txt"),new Path("/shp"));
+
+        //3.关闭资源
+        client.close();
+    }
+```
+
+这样你再上传一个文件到 hdfs 上，发现副本数变成了 2
+
+**参数优先级排序**
+
+> 客户端代码中设置的值 > 类路径下用户自定义的配置文件 > 服务中配置文件配置的值
 
 
 

@@ -1579,6 +1579,224 @@ public class HDFSClient {
 
 > 客户端代码中设置的值 > 类路径下用户自定义的配置文件 > 服务中配置文件配置的值
 
+#### 2、文件下载
+
+```java
+@Test
+    public void testCopyToLocalFile() throws URISyntaxException, IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        // 1.获取 hdfs 对象
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration, "root");
+
+        // 2. 执行下载 API
+        client.copyToLocalFile(new Path("/heping.txt"),new Path("/Users/shenheping/Desktop"));
+
+        // 3.关闭资源
+        client.close();
+    }
+```
+
+#### 3、文件夹删除
+
+```java
+@Test
+    public void testDelete() throws URISyntaxException, IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        // 1.获取 hdfs 对象
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration, "root");
+
+        // 2. 执行删除 API
+        // 第二个参数表示是否是递归删除
+        client.delete(new Path("/heping.txt"),true);
+
+        // 3.关闭资源
+        client.close();
+    }
+```
+
+#### 4、修改文件名称
+
+```java
+@Test
+    public void testRename() throws URISyntaxException, IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        // 1.获取 hdfs 对象
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration, "root");
+
+        // 2.执行修改名称 API
+        client.rename(new Path("/shp"),new Path("/shp1"));
+
+        // 3.关闭资源
+        client.close();
+    }
+```
+
+#### 5、查看文件详情
+
+查看文件名称、权限、长度、块信息
+
+```java
+@Test
+    public void testListFiles() throws URISyntaxException, IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        // 1.获取 hdfs 对象
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration, "root");
+
+        // 2.查看文件详情
+        RemoteIterator<LocatedFileStatus> listFiles = client.listFiles(new Path("/"), true);
+
+        while (listFiles.hasNext()) {
+            // 拿到这个文件的状态信息
+            LocatedFileStatus fileStatus = listFiles.next();
+            // 查看文件名称、权限、长度、块信息
+            System.out.println(fileStatus.getPath().getName()); // 文件名称
+            System.out.println(fileStatus.getPermission());  // 文件权限
+            System.out.println(fileStatus.getLen());   // 文件长度
+
+            // 返回一个数组，因为这个数据块会有多个副本
+            BlockLocation[] blockLocations = fileStatus.getBlockLocations();
+            for (BlockLocation blockLocation : blockLocations) {
+                // 这个数据块具体在哪一台主机上
+                String[] hosts = blockLocation.getHosts();
+                for (String host : hosts) {
+                    System.out.println(host);
+                }
+            }
+            System.out.println("------分隔线-----");
+
+        }
+        // 3.关闭资源
+        client.close();
+    }
+```
+
+#### 6、判断是文件还是文件夹
+
+```java
+@Test
+    public void testListStatus() throws URISyntaxException, IOException, InterruptedException {
+        Configuration configuration = new Configuration();
+        // 1.获取 hdfs 对象
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration, "root");
+
+        // 2.判断操作
+        FileStatus[] fileStatuses = client.listStatus(new Path("/"));
+        for (FileStatus fileStatus : fileStatuses) {
+            if (fileStatus.isFile()) {
+                System.out.println("文件" + fileStatus.getPath().getName());
+            } else if (fileStatus.isDirectory()) {
+                System.out.println("目录" + fileStatus.getPath().getName());
+            }
+        }
+    }
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

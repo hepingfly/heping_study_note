@@ -1691,6 +1691,170 @@ public class HDFSClient {
     }
 ```
 
+### HDFS 的 I/O 操作
+
+前面我们都是使用 hdfs 封装好的 API 对 HDFS 进行操作，下面我们使用  IO 流对 HDFS 进行操作
+
+#### 1、HDFS 文件上传
+
+```java
+/**
+     * 把本地的文件上传到 hdfs 的根目录
+     */
+    @Test
+    public void test() throws URISyntaxException, IOException, InterruptedException {
+        // 1. 获取 hdfs 对象
+        Configuration configuration = new Configuration();
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration,"root");
+
+        // 2.获取输入流
+        FileInputStream fis = new FileInputStream(new File("/Users/shenheping/Desktop/abc.txt"));
+
+        // 3.获取输出流
+        FSDataOutputStream fos = client.create(new Path("/abc.txt"));
+
+        // 4.流的拷贝
+        IOUtils.copyBytes(fis,fos,configuration);
+
+        // 5.关闭流
+        IOUtils.closeStream(fos);
+        IOUtils.closeStream(fis);
+        client.close();
+    }
+```
+
+#### 2、HDFS 文件下载
+
+```java
+/**
+     * 从 hdfs 上下载文件到本地
+     */
+    @Test
+    public void getFileFromHDFS() throws URISyntaxException, IOException, InterruptedException {
+        // 1. 获取 hdfs 对象
+        Configuration configuration = new Configuration();
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration,"root");
+
+        // 2.获取输入流
+        FSDataInputStream fis = client.open(new Path("/abc.txt"));
+
+        // 3.获取输出流
+        FileOutputStream fos = new FileOutputStream(new File("/Users/shenheping/Desktop"));
+
+        // 4.IO流对拷
+        IOUtils.copyBytes(fis,fos,configuration);
+
+        // 5.关闭资源
+        IOUtils.closeStream(fos);
+        IOUtils.closeStream(fis);
+        client.close();
+    }
+```
+
+#### 3、定位读取文件
+
+分块读取 HDFS 上的大文件
+
+```java
+/**
+     * 下载第一块
+     */
+    @Test
+    public void readFileSeek1() throws URISyntaxException, IOException, InterruptedException {
+        // 1.获取 fdfs 对象
+        Configuration configuration = new Configuration();
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration,"root");
+
+        // 2. 获取输入流
+        FSDataInputStream fis = client.open(new Path("/hadoop-2.7.2.tar.gz"));
+
+        // 3.获取输出流
+        FileOutputStream fos = new FileOutputStream(new File("/Users/shenheping/Desktop/hadoop-2.7.2.tar.gz.part1"));
+
+        // 4.流的拷贝（只拷贝 128m）
+        byte[] bytes = new byte[1024];
+        for (int i = 0; i < 1024 * 128; i++) {
+            fis.read(bytes);
+            fos.write(bytes);
+        }
+
+        // 5.关闭流
+        IOUtils.closeStream(fos);
+        IOUtils.closeStream(fis);
+        client.close();
+    }
+
+    @Test
+    public void readFileSeek2() throws URISyntaxException, IOException, InterruptedException {
+        // 1.获取 fdfs 对象
+        Configuration configuration = new Configuration();
+        FileSystem client = FileSystem.get(new URI("hdfs://192.168.148.141:9000"), configuration,"root");
+
+        // 2. 获取输入流
+        FSDataInputStream fis = client.open(new Path("/hadoop-2.7.2.tar.gz"));
+
+        // 3.设置指定读取的起点
+        fis.seek(1024 * 1024 * 128);
+
+        // 4.获取输出流
+        FileOutputStream fos = new FileOutputStream(new File("/Users/shenheping/Desktop/hadoop-2.7.2.tar.gz.part1"));
+
+        // 5.流的拷贝
+        IOUtils.copyBytes(fis,fos,configuration);
+
+        // 6.关闭流
+        IOUtils.closeStream(fos);
+        IOUtils.closeStream(fis);
+        client.close();
+    }
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

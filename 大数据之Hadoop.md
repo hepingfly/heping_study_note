@@ -1517,6 +1517,12 @@ public class HDFSClient {
 }
 ```
 
+**注：**
+
+> 客户端去操作 HDFS 时，是有一个用户身份的。默认情况下，HDFS 客户端 API 会从 JVM 中获取一个参数来作为自己的用户身份。
+>
+> `-DHADOOP_USER_NAME=root`       root 为用户名称
+
 ### HDFS 的 API 操作
 
 #### 1、文件上传
@@ -1809,13 +1815,50 @@ public class HDFSClient {
     }
 ```
 
+### HDFS 的数据流
+
+#### 1、HDFS 写数据流程
+
+就是如何向 HDFS 中上传数据
+
+> 首先是有一个集群，这个集群中包括一个 NameNode 和 三个 DataNode。然后我客户端要去操作集群，我需要使用客户端把本地 abc.avi 这个文件上传到 HDFS 集群上。那么我们首先肯定需要拿到这个客户端对象，如果你是用 java 代码去操作的话，那么这个客户端对象就是 `FileSystem` 。拿到这个客户端对象之后，它会创建一个 `Distributed FileSystem`（后面的所有操作都和它有关系）。然后这个对象会向 NameNode 请求上传文件 /shp/heping/abc.avi  ，这时候 NameNode 会检查是否存在这个文件，如果存在直接报文件已存在。如果这个文件不存在，NameNode 会响应可以上传。可以上传之后，我肯定需要知道上传到哪几台 DataNode 服务器，所以我客户端会请求 NameNode 上传第一个 Block，让 NameNode 给我返回要上传到哪几个 DataNode 服务器。这时候 NameNode 经过计算，返回要上传的 DataNode 节点。现在我客户端知道往哪写了，接下来就是获取 FSDataOutputStream，建立 Block 传输通道，FSDataOutputStream 会请求 dn1 上传数据，dn1 收到请求会继续调用 dn2，然后 dn2 调用 dn3 ，将这个通信管道建立完成。在请求建立通道的时候 dn3 dn2 dn1 都会进行应答，都应答成功后这个通道就建立起来了。最后一步就是传输数据了。
+
+![HDFS写数据流程](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/HDFS%E5%86%99%E6%95%B0%E6%8D%AE%E6%B5%81%E7%A8%8B.png)
+
+**总结：**
+
+> 1. 客户端通过 Distributed FileSystem 模块向 NameNode 请求上传文件，NameNode 检查目标文件是否已存在，父目录是否已存在
+> 2. NameNode 返回是否可以上传
+> 3. 客户端请求第一个 Block ，上传到哪几个 DataNode 服务器上
+> 4. NameNode 返回 3 个 DataNode 节点，分别为 dn1、dn2、dn3
+> 5. 客户端通过 FSDataOutputStream 模块请求 dn1 上传数据， dn1 收到请求会继续调用 dn2，然后 dn2 调用 dn3，将这个通信管道建立完成
+> 6. dn1、dn2、dn3 逐级应答客户端
+> 7. 客户端开始往 dn1 上传第一个 Block（先从磁盘读取数据放到一个本地内存缓存），以 Packet 为单位，dn1 收到一个 Packet 就会传给 dn2，dn2 传给 dn3（dn1 每传一个 Packet 会放入一个应答队列等待应答）
+> 8. 当一个 Block 传输完成后，客户端再次请求 NameNode 上传第二个 Block 到服务器（重复执行 3-7 步）
+
+#### 2、网络拓扑-节点距离计算
+
+在 HDFS 写数据过程中，NameNode 会选择距离待上传数据最近距离的 DataNode 接收数据。那么这个最近距离是怎么计算的呢？
+
+> **节点距离：两个节点到达最近的共同祖先的距离总和**
+
+![节点距离](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/%E8%8A%82%E7%82%B9%E8%B7%9D%E7%A6%BB.png)
 
 
 
+比如说上图，节点9 和节点4 的共同祖先是节点8，节点9 到节点8 的距离是 1，节点4 到节点8 的距离是 2，那么这两个节点之间的距离就是 3
 
+#### 3、HDFS 机架感知-副本存储节点选择
 
+比如说你现在存储了一个数据，这个数据有 3 个副本，这三个副本存在哪里？
 
+> - 第一个副本在 client 所处的节点上，如果客户端在集群外，随机选一个
+> - 第二个副本和第一个副本位于相同机架，随机节点
+> - 第三个副本位于不同机架，随机节点
+>
+> 这样做的好处第一个是同一个机架上读写迅速，备份速度快。第二个就是如果一个机架挂了，另一个机架上还有，可靠性高。
 
+![副本节点选择](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/%E5%89%AF%E6%9C%AC%E8%8A%82%E7%82%B9%E9%80%89%E6%8B%A9.png)
 
 
 

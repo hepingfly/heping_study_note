@@ -1860,7 +1860,14 @@ public class HDFSClient {
 
 ![副本节点选择](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/%E5%89%AF%E6%9C%AC%E8%8A%82%E7%82%B9%E9%80%89%E6%8B%A9.png)
 
+#### 4、HDFS 读数据流程
 
+![HDFS读取数据流程](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/HDFS%E8%AF%BB%E6%95%B0%E6%8D%AE%E6%B5%81%E7%A8%8B.png)
+
+> - 客户端通过 Distributed FileSystem 向 NameNode 请求下载文件，NameNode 通过查询元数据，找到文件块所在的 DataNode 地址
+> - 挑选一台 DataNode 服务器（就近原则，然后随机），请求读取数据
+> - DataNode 开始传输数据给客户端
+> - 客户端以 Packet 为单位接收，先在本地缓存，然后写入目标文件
 
 
 

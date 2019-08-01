@@ -1869,11 +1869,53 @@ public class HDFSClient {
 > - DataNode 开始传输数据给客户端
 > - 客户端以 Packet 为单位接收，先在本地缓存，然后写入目标文件
 
+### NameNode 和 SecondaryNameNode
 
+#### 1、NN 和 2NN 工作机制
 
+ **首先思考 NameNode 中的元数据是存储在哪里的？**
 
+> 首先，我们假设，如果存储在 NameNode 节点的磁盘中，因为经常需要随机访问，还有响应客户请求，必然效率会非常低。因此元数据需要放在内存中。但是如果只存在内存中，一旦断电，元数据丢失，整个集群就无法工作了。**因此产生在磁盘中备份元数据的 FsImage**
+>
+> 这样又会带来新的问题，当在内存中的元数据更新时，如果同时更新 `FsImage`，就会导致效率过低（牵涉到磁盘 IO），但是如果不更新，就会发生一致性问题，一旦 NameNode 节点断电，就会产生数据丢失。因此，**引入 Edits 文件（只进行追加操作，效率很高）。每当有元数据更新或者添加元数据时，修改内存中的元数据并追加到 Edits 中**。这样一旦 NameNode 节点断电，可以通过 FsImage 和 Edits 的合并，合成元数据。
+>
+> 但是如果长时间添加数据到 `Edits` 中，会导致该文件数据过大，效率降低。而且一旦断电，恢复元数据需要的时间会很长。因此需要定期进行 `FsImage` 和 `Edits` 的合并，如果这个操作由 NameNode 节点完成，又会效率过低。因此引入一个新的节点 SecondaryNameNode 专门用于 `FsImage` 和 `Edits` 的合并。
 
+**总结一下：**
 
+>  首先 NameNode 的元数据存在哪？肯定是存在内存中的，读取和响应快。但是内存有断电丢失数据的缺点，那怎么办？就是把这个数据存在磁盘中，存在磁盘的 `FsImage` 中。但是如果别人对内存中的数据有修改，你如果直接去修改 FsImage 不划算（产生大量磁盘 IO，效率就低了），这样就引入一个 `Edits` ，操作内存中的数据，同时把它写到编辑日志中去。这样 内存中的数据 = `FsImage + Edits`   。这样又会存在一个问题，就是编辑日志会越来越大，什么时候将 `FsImage` 和 `Edits` 进行合并呢？这时候就引入了 `SecondaryNameNode`
+
+**NameNode 工作机制**
+
+ ![NameNode工作机制](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/NameNode%E5%B7%A5%E4%BD%9C%E6%9C%BA%E5%88%B6.png)
+
+> 第一阶段：NameNode 启动
+>
+> - 第一次启动 NameNode 格式化后，创建 FsImage 和 Edits 文件。如果不是第一次启动，直接加载编辑日志和镜像文件到内存
+> - 客户端对元数据进行增删改请求
+> - NameNode 记录操作日志，更新滚动日志
+> - NameNode 在内存中对数据进行增删改
+>
+> 第二阶段：Secondary NameNode 工作
+>
+> - Secondary NameNode 询问 NameNode 是否需要 CheckPoint ，直接带回 NameNode 是否检查结果
+> - Secondary NameNode 请求执行 CheckPoint
+> - NameNode 滚动正在写的 Edits 日志
+> - 将滚动前的编辑日志和镜像文件拷贝到 SecondaryNameNode
+> - Secondary NameNode 加载编辑日志和镜像文件到内存，并合并
+> - 生成新的镜像文件 fsimage.chkpoint
+> - 拷贝 fsimage.chkpoint
+> - NameNode 将 fsimage.chkpoint 重命名成 fsimage
+
+**NN 和 2NN 工作机制详解**
+
+```
+Fsimage：NameNode内存中元数据序列化后形成的文件。
+Edits：记录客户端更新元数据信息的每一步操作（可通过Edits运算出元数据）。
+NameNode启动时，先滚动Edits并生成一个空的edits.inprogress，然后加载Edits和Fsimage到内存中，此时NameNode内存就持有最新的元数据信息。Client开始对NameNode发送元数据的增删改的请求，这些请求的操作首先会被记录到edits.inprogress中（查询元数据的操作不会被记录在Edits中，因为查询操作不会更改元数据信息），如果此时NameNode挂掉，重启后会从Edits中读取元数据的信息。然后，NameNode会在内存中执行元数据的增删改的操作。
+由于Edits中记录的操作会越来越多，Edits文件会越来越大，导致NameNode在启动加载Edits时会很慢，所以需要对Edits和Fsimage进行合并（所谓合并，就是将Edits和Fsimage加载到内存中，照着Edits中的操作一步步执行，最终形成新的Fsimage）。SecondaryNameNode的作用就是帮助NameNode进行Edits和Fsimage的合并工作。
+SecondaryNameNode首先会询问NameNode是否需要CheckPoint（触发CheckPoint需要满足两个条件中的任意一个，定时时间到和Edits中数据写满了）。直接带回NameNode是否检查结果。SecondaryNameNode执行CheckPoint操作，首先会让NameNode滚动Edits并生成一个空的edits.inprogress，滚动Edits的目的是给Edits打个标记，以后所有新的操作都写入edits.inprogress，其他未合并的Edits和Fsimage会拷贝到SecondaryNameNode的本地，然后将拷贝的Edits和Fsimage加载到内存中进行合并，生成fsimage.chkpoint，然后将fsimage.chkpoint拷贝给NameNode，重命名为Fsimage后替换掉原来的Fsimage。NameNode在启动时就只需要加载之前未合并的Edits和Fsimage即可，因为合并过的Edits中的元数据信息已经被记录在Fsimage中。
+```
 
 
 

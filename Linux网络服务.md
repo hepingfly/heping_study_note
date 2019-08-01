@@ -280,9 +280,29 @@ ssh 作为一个用来远程管理服务器的工具，需要特别的安全，�
 >
 > `ifconfig eth0:0 192.168.148.22 down`
 
+### 12、ssh 相关命令
 
+`scp`
 
+> scp ：安全的远程文件复制命令
+>
+> scp 是 secure copy 的简写，用于在 Linux 下进行远程拷贝文件
+>
+> 格式：
+>
+> `scp 本地文件路径 用户名@服务器ip:远程服务器路径`
+>
+> `scp /home/hpshen/aa.txt root@192.168.148.141:/home`
 
+`sftp`
+
+> sftp：安全的文件传输协议
+>
+> sftp 是 Secure FileTransferProtocol 的缩写，安全文件传送协议。sftp 与 ftp 有着几乎一样的语法和功能。由于这种传输方式使用了加密/解密技术，所以 sftp 比 ftp 更安全一些，但传输效率会低一点。
+>
+> 格式：
+>
+> `sftp 用户名@服务器ip`
 
 
 

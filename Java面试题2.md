@@ -363,6 +363,88 @@ public class CASDemo {
 > - 真实值和期望值相同，修改成功
 > - 真实值和期望值不同，修改失败
 
+#### 7、CAS 底层原理
+
+```java
+atomicInteger.getAndIncrement();   // 这行代码底层调用的是 Unsafe 类
+
+//------------------------------
+public final int getAndIncrement() {    // 这行代码解决了 i++ 在多线程下的线程安全问题
+    	/**
+    	  this: 表示当前对象
+    	  valueOffset:表示该变量值在内存偏移地址，因为 Unsafe 类就是根据内存偏移地址获取数据的
+    	  1：固定写死，每调用一次这个方法就递增 1
+    	*/
+        return unsafe.getAndAddInt(this, valueOffset, 1);  // 这行代码你再点进去，发现到了 Unsafe 类下面
+}
+```
+
+**Unsafe 类是什么？**
+
+> ① 这个类位于 jdk   rt.jar\sun\misc   下面有个 Unsafe.class
+>
+> 是 jdk 自带的一个类 
+>
+> ② Unsafe 是 CAS 的核心类，由于 Java 方法无法直接访问底层操作系统，需要通过本地（native）方法来访问，Unsafe 相当于一个后门，基于该类可以直接操作特定内存的数据。Unsafe 类存在于 sun.misc 包中，其内部方法操作可以像 C 的指针一样直接操作内存，因为 JAVA 中 CAS 操作的执行依赖于 Unsafe 类的方法。
+
+**注：**
+
+> **Unsafe 类中的所有方法都是 native 修饰的，也就是说 Unsafe 类中的方法都直接调用操作系统底层资源执行相应任务。**
+
+**CAS 解释：**
+
+> CAS 的全称是 Compare-And-Swap ，**它是一条 CPU 并发原语**。它的功能是判断内存某个位置的值是否为预期值，如果是则更改为新的值，整个过程是原子的。
+>
+> CAS 并发原语体现在 JAVA 语言中就是 sun.misc.Unsafe 类中的各个方法。调用 Unsafe 类中的 CAS 方法，JVM 会帮我们实现出 CAS 汇编指令。这是一种完全依赖于硬件的功能，通过它实现了原子操作。再次说明，由于 CAS 是一种系统原语，原语属于操作系统用语范畴，是由若干条指令组成的，用于完成某一个功能的一个过程，**并且原语的执行必须是连续的，在执行过程中不允许被中断，也就是说 CAS 是一条 CPU 的原子指令，不会造成所谓的数据不一致问题**。（操作系统底层指令，在执行过程不允许被打断，只有等他执行完了，别人才有机会去执行，因此可以保证原子性）
+
+**源码说明：**
+
+```java
+public final int getAndIncrement() {
+     return unsafe.getAndAddInt(this, valueOffset, 1);
+}
+public final int getAndAddInt(Object var1, long var2, int var4) {
+    int var5;
+    do {
+        var5 = this.getIntVolatile(var1, var2)
+    } while(!this.compareAndSwapInt(var1,var2,var5,var5 + var4));
+    return var5;
+}
+
+/**
+	var1：AtomicInteger 对象本身
+	var2: 该对象值的引用地址
+	var4: 需要变动的数量
+	var5: 是用 var1 var2 找出主内存中真实的值
+	用该对象当前的值与 var5 比较：如果相同，更新 var5 + var4 并且返回 true
+	如果不相同，继续取值然后再比较，直到更新完成
+*/
+```
+
+> 假设线程A 和线程B 两个线程同时执行 getAndAddInt 操作：
+>
+> 1、AtomicInteger 里面的 value 原始值为 3，即主内存中 AtomicInteger 的 value 为 3，根据 JMM 模型，线程A 和线程B 各自持有一份值为 3 的 value 的副本分别到各自的工作内存。
+>
+> 2、线程A 通过 getIntVolatile(var1,var2) 拿到 value 值为 3，这时线程A 被挂起。
+>
+> 3、线程B 也通过 getIntVolatile(var1,var2) 方法获取到 value 值为 3，此时刚好线程B 没有被挂起并执行 compareAndSwapInt 方法，比较内存值也是 3，成功修改内存值为 4，线程B 打完收工。
+>
+> 4、这时线程A 恢复，执行 compareAndSwapInt 方法比较，发现自己手里的值，数字 3 和主物理内存的值数字 4   不一样，说明该值已经被其它线程抢先一步修改了，那么 A 线程本次修改失败，**只能重新读取重新再来一遍了**。
+>
+> 5、线程A 重新获取 value 值，因为变量 value 被 volatile 修饰，所以其它线程对他修改，线程A 总是能看到，线程A 继续执行 compareAndSwapInt 进行比较替换，直到成功。
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

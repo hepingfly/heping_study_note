@@ -1917,6 +1917,119 @@ NameNode启动时，先滚动Edits并生成一个空的edits.inprogress，然后
 SecondaryNameNode首先会询问NameNode是否需要CheckPoint（触发CheckPoint需要满足两个条件中的任意一个，定时时间到和Edits中数据写满了）。直接带回NameNode是否检查结果。SecondaryNameNode执行CheckPoint操作，首先会让NameNode滚动Edits并生成一个空的edits.inprogress，滚动Edits的目的是给Edits打个标记，以后所有新的操作都写入edits.inprogress，其他未合并的Edits和Fsimage会拷贝到SecondaryNameNode的本地，然后将拷贝的Edits和Fsimage加载到内存中进行合并，生成fsimage.chkpoint，然后将fsimage.chkpoint拷贝给NameNode，重命名为Fsimage后替换掉原来的Fsimage。NameNode在启动时就只需要加载之前未合并的Edits和Fsimage即可，因为合并过的Edits中的元数据信息已经被记录在Fsimage中。
 ```
 
+### CheckPoint 时间设置
+
+1）、通常情况下，SecondaryNameNode 每隔一小时执行一次
+
+`hdfs-default.xml`
+
+```xml
+<property>
+  <name>dfs.namenode.checkpoint.period</name>
+  <value>3600</value>
+</property>
+```
+
+2）、一分钟检查一次操作数，当操作数达到一百万时， SecondaryNameNode 执行一次
+
+```xml
+<property>
+  <name>dfs.namenode.checkpoint.txns</name>
+  <value>1000000</value>
+  <description>操作动作次数</description>
+</property>
+
+<property>
+  <name>dfs.namenode.checkpoint.check.period</name>
+  <value>60</value>
+  <description> 1分钟检查一次操作次数</description>
+</property >
+```
+
+### NameNode 故障处理
+
+NameNode 故障后，可以采用如下两种方法恢复数据
+
+方法一：
+
+将 SecondaryNameNode 中数据拷贝到 NameNode 存储数据的目录
+
+> 1、kill -9 NameNode进程
+>
+> 2、删除 NameNode 存储的数据
+>
+> `rm -rf /usr/local/module/hadoop-2.7.2/data/tmp/dfs/name/*`
+>
+> 3、拷贝 SecondaryNameNode 中的数据到 NameNode 存储数据目录
+>
+> `scp -r  root@192.168.148.143:/usr/local/module/hadoop-2.7.2/data/tmp/dfs/namesecondary/* /usr/local/module/hadoop-2.7.2/data/tmp/dfs/name`
+>
+> 4、重新启动 NameNode
+>
+> `sbin/hadoop-daemon.sh start namenode`
+
+方法二：
+
+使用 -importCheckpoint 选项启动 NameNode 守护进程，从而将 SecondaryNameNode 中数据拷贝到 NameNode 目录中
+
+1、修改 hdfs-site.xml
+
+```xml
+<property>
+  <name>dfs.namenode.checkpoint.period</name>
+  <value>120</value>
+</property>
+
+<property>
+  <name>dfs.namenode.name.dir</name>
+  <value>/usr/local/module/hadoop-2.7.2/data/tmp/dfs/name</value>
+</property>
+```
+
+2、kill -9 NameNode 进程
+
+3、删除 NameNode 存储的数据
+
+> `rm -rf /usr/local/module/hadoop-2.7.2/data/tmp/dfs/name/*`
+
+4、如果 SecondaryNameNode 不和 NameNode 在一个主机节点上，需要将 SecondaryNameNode 存储数据的目录拷贝到 NameNode 存储数据的平级目录，并删除 in_use.lock 文件
+
+> `scp -r  root@192.168.148.143:/usr/local/module/hadoop-2.7.2/data/tmp/dfs/namesecondary/* /usr/local/module/hadoop-2.7.2/data/tmp/dfs`
+>
+> `cd namesecondary`
+>
+> `rm -rf in_use.lock`
+
+5、导入检查点数据
+
+> `bin/hdfs namenode -importCheckpoint`
+
+6、启动 NameNode
+
+> `sbin/hadoop-daemon.sh start namenode`
+
+### 集群安全模式
+
+1）、NameNode 启动
+
+> NameNode 启动时，首先将镜像文件（Fsimage）载入内存，并执行编辑日志（Edits）中的各项操作。一旦在内存中成功建立文件系统元数据的映像，则创建一个新的 Fsimage 文件和一个空的编辑日志。此时 NameNode 开始监听 DataNode 请求。**这个过程期间，NameNode 一直运行在安全模式，即 NameNode 的文件系统对于客户端来说是只读的。**
+
+2）、DataNode 启动
+
+> **系统中的数据库的位置并不是由 NameNode 维护的，而是以块列表的形式存储在 DataNode 中。**在系统的正常操作期间，NameNode 会在内存中保留所有块位置的映射信息。在安全模式下，各个 DataNode 会向 NameNode 发送最新的块列表信息，NameNode 了解到足够多的块位置信息之后，即可高效运行文件系统。
+
+3）、安全模式退出判断
+
+> 如果满足“最小副本条件”，NameNode 会在 30 秒之后就退出安全模式。所谓的最小副本条件指的是在整个文件系统中 99.9% 的块满足最小副本级别（默认值：dfs.replication.min=1）。在启动一个刚刚格式化的 HDFS 集群时，因为系统中还没有任何块，所以 NameNode 不会进入安全模式
+
+
+
+
+
+
+
+
+
 
 
 

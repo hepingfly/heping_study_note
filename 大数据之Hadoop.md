@@ -2010,6 +2010,8 @@ NameNode 故障后，可以采用如下两种方法恢复数据
 
 ### 集群安全模式
 
+#### 安全模式：
+
 1）、NameNode 启动
 
 > NameNode 启动时，首先将镜像文件（Fsimage）载入内存，并执行编辑日志（Edits）中的各项操作。一旦在内存中成功建立文件系统元数据的映像，则创建一个新的 Fsimage 文件和一个空的编辑日志。此时 NameNode 开始监听 DataNode 请求。**这个过程期间，NameNode 一直运行在安全模式，即 NameNode 的文件系统对于客户端来说是只读的。**
@@ -2022,7 +2024,78 @@ NameNode 故障后，可以采用如下两种方法恢复数据
 
 > 如果满足“最小副本条件”，NameNode 会在 30 秒之后就退出安全模式。所谓的最小副本条件指的是在整个文件系统中 99.9% 的块满足最小副本级别（默认值：dfs.replication.min=1）。在启动一个刚刚格式化的 HDFS 集群时，因为系统中还没有任何块，所以 NameNode 不会进入安全模式
 
+#### 基本语法：
 
+集群处于安全模式，不能执行重要操作（写操作）。集群启动完成后，自动退出安全模式。
+
+> - `bin/hdfs dfsadmin -safemode get`           查看安全模式状态
+> - `bin/hdfs dfsadmin -safemode enter`        进入安全模式状态
+> - `bin/hdfs dfsadmin -safemode leave`         离开安全模式状态
+> - `bin/hdfs dfsadmin -safemode wait`           等待安全模式状态      
+
+```shell
+[root@hadoop1 bin]# hdfs dfsadmin -safemode get
+Safe mode is OFF
+
+[root@hadoop1 bin]# hdfs dfsadmin -safemode enter
+Safe mode is ON
+[root@hadoop1 bin]# hdfs dfs -put b.txt /
+put: Cannot create file/b.txt._COPYING_. Name node is in safe mode.
+
+# 进入安全模式之后，就不允许进行写操作了
+
+#-------------------模拟等待安全模式---------------------------
+1.先进入安全模式
+ hdfs dfsadmin -safemode enter
+2.创建并执行下面脚本
+vim safemode.sh
+#!/bin/bash
+hdfs dfsadmin -safemode wait     # 这个表示等待安全模式退出，一退出安全模式立马执行下面的命令
+hdfs dfs -put b.txt /
+./safemode.sh         # 这个脚本执行的时候会是阻塞状态，等到安全模式退出，会立马执行完成
+3.再打开一个窗口执行
+hdfs dfsadmin -safemode leave
+4.观察上一个窗口的情况，发现已经执行完成，文件上传到了 hdfs 上
+```
+
+### NameNode 多目录配置
+
+NameNode 的本地目录可以配置成多个，且每个目录存放内容相同，增加了可靠性
+
+具体配置如下：
+
+① 在 hdfs-site.xml 中增加如下内容
+
+```xml
+<property>
+    <name>dfs.namenode.name.dir</name>
+	<value>file:///${hadoop.tmp.dir}/dfs/name1,file:///${hadoop.tmp.dir}/dfs/name2</value>
+</property>
+
+<!-- hadoop.tmp.dir 为在 core-site.xml 中配置好的路径 -->
+```
+
+② 停止集群删除 data 和 logs 中所有数据
+
+```
+rm -rf data/ logs/
+```
+
+③ 格式化集群并启动
+
+```
+bin/hdfs namenode –format
+sbin/start-dfs.sh
+```
+
+④ 查看结果
+
+```
+ll
+data
+name1
+name2
+```
 
 
 

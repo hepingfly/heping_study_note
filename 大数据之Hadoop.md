@@ -2097,6 +2097,64 @@ name1
 name2
 ```
 
+### DataNode 工作机制
+
+![DataNode工作机制](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/DataNode%E5%B7%A5%E4%BD%9C%E6%9C%BA%E5%88%B6.png)
+
+> 1. 一个数据块在 DataNode 上以文件形式存储在磁盘上，包括两个文件，一个是数据本身，一个是元数据，包括数据块的长度，块数据的校验和，以及时间戳
+> 2. DataNode 启动后，向 NameNode 注册，通过后，周期性（1h）的向 NameNode 上报所有块信息
+> 3. 心跳是每 3 秒一次，心跳返回结果带有 NameNode 给该 DataNode 的命令如复制块数据到另一台机器，或删除某个数据块。如果超过 10 分钟没有收到某个 DataNode 的心跳，则认为该节点不可用
+> 4. 集群运行过程中可以安全加入和退出一些机器
+
+### 数据完整性
+
+> 假如说电脑磁盘里面存储的数据是交通信号灯的红灯信号（1）和绿灯信号（0），但是如果存储该数据的磁盘坏了，一直是绿灯，是否很危险？同理 DataNode 节点上的数据损坏了，却没有发现，是否也很危险？
+>
+> 下面是 DataNode 节点保证数据完整性的方法：
+>
+> 1、当 DataNode 读取 Block 的时候，它会计算 CheckSum
+>
+> 2、如果计算后的 CheckSum ，与 Block 创建时值不一样，说明 Block 已经损坏
+>
+> 3、client 读取其他 DataNode 上的 Block
+>
+> 4、DataNode 在其文件创建后周期验证 CheckSum
+
+### DataNode 掉线时参数设置
+
+![DataNode 掉线时参数设置](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/Datanode%E6%8E%89%E7%BA%BF%E6%97%B6%E5%8F%82%E6%95%B0%E8%AE%BE%E7%BD%AE.png)
+
+通过修改 hdfs-site.xml 可以去改默认配置
+
+```xml
+<property>
+    <name>dfs.namenode.heartbeat.recheck-interval</name>
+    <value>300000</value>
+</property>
+<property>
+    <name>dfs.heartbeat.interval</name>
+    <value>3</value>
+</property>
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

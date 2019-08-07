@@ -2137,6 +2137,115 @@ name2
 </property>
 ```
 
+### 服役新数据节点
+
+随着业务的增长，数据量越来越大，原有的数据节点的容量已经不能满足存储数据的需求，需要在原有集群基础上动态添加新的数据节点。
+
+具体步骤就是：
+
+> 在新的服务器节点上配置好 hadoop 环境，然后直接启动 DataNode，即可关联到集群
+>
+> `sbin/hadoop-daemon.sh start datanode`
+>
+> `sbin/yarn-daemon.sh start nodemanager`
+
+### 退役旧数据节点
+
+#### 1、添加白名单
+
+上面说了横向扩展一个数据节点很方便，只要把服务器节点的 hadoop 环境和集群保持一致，然后直接启动 DataNode 就可以关联到集群。那么这样可能就会有安全问题，比如我随便弄一个服务器然后上面的  hadoop 配置和集群一样，这样我的这个节点也加入集群了，会存在数据安全问题，我们可以通过设置白名单来解决这个问题。
+
+添加到白名单的主机节点，都允许访问 NameNode，不在白名单的主机节点，都会被退出。
+
+**配置白名单的具体步骤：**
+
+① 在 NameNode  的 `/usr/local/module/hadoop-2.7.2/etc/hadoop` 的目录下创建 dfs.hosts 文件
+
+```shell
+vim dfs.hosts
+# 添加以下节点
+192.168.148.141
+192.168.148.142
+192.168.148.143
+```
+
+② 在 NameNode 的 hdfs-site.xml 中增加 dfs.hosts 属性
+
+```xml
+<property>
+	<name>dfs.hosts</name>
+	<value>/usr/local/module/hadoop-2.7.2/etc/hadoop/dfs.hosts</value>
+</property>
+```
+
+③ 配置文件分发
+
+```shell
+./xsync hdfs-site.xml       
+# xsync 是编写的集群分发脚本 
+```
+
+④ 刷新 NameNode 节点
+
+```shell
+cd /usr/local/module/hadoop-2.7.2/bin
+hdfs dfsadmin -refreshNodes           # 让 NameNode 重新去读取 hdfs 节点，这样不在白名单的服务器节点就会下线
+```
+
+⑤ 更新 ResourceManager 节点
+
+```shell
+cd /usr/local/module/hadoop-2.7.2/bin
+yarn rmadmin -refreshNodes
+```
+
+#### 2、添加黑名单
+
+在黑名单上的主机都会被强制退出
+
+**配置黑名单步骤：**
+
+① 在 NameNode  的 `/usr/local/module/hadoop-2.7.2/etc/hadoop` 的目录下创建 dfs.hosts.exclude 文件
+
+```shell
+vim dfs.hosts.exclude
+# 添加以下节点
+192.168.148.144         # 这个节点是要退役的节点
+```
+
+② 在 NameNode 的 hdfs-site.xml 中增加 dfs.hosts.exclude 属性
+
+```xml
+<property>
+	<name>dfs.hosts.exclude</name>
+    <value>/usr/local/module/hadoop-2.7.2/etc/hadoop/dfs.hosts.exclude</value>
+</property>
+```
+
+③ 刷新 NameNode 刷新 ResourceManager
+
+```shell
+cd /usr/local/module/hadoop-2.7.2/bin
+hdfs dfsadmin -refreshNodes 
+yarn rmadmin -refreshNodes
+```
+
+④ 检查 web 浏览器，退役节点的状态为 decommission in progress（退役中），说明数据节点正在复制块到其他节点
+
+⑤ 等待退役节点状态为 decommissioned（所有块已经复制完成），停止该节点及节点资源管理器。注意：如果副本数是 3，服役的节点小于等于 3，是不能退役成功的，需要修改副本数后才能退役。
+
+**注意：**
+
+==不允许白名单和黑名单中同时出现同一个主机名称==
+
+
+
+
+
+
+
+
+
 
 
 

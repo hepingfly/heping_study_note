@@ -2238,6 +2238,123 @@ yarn rmadmin -refreshNodes
 
 ==不允许白名单和黑名单中同时出现同一个主机名称==
 
+## 五、HDFS2.X 新特性
+
+### 1、集群间数据拷贝
+
+如果你想实现服务器之间的数据拷贝，使用 scp 命令就可以。但是如果想实现集群与集群之间的数据拷贝，一个场景就是在真实开发中，可能会有生产集群和测试集群。你先在测试集群操作，操作完之后想把数据拷贝到生产集群，这时候就需要集群与集群之间的数据拷贝。
+
+使用 `distcp` 命令实现两个 hadoop 集群之间的递归数据复制
+
+```sh
+# 第一个集群 NameNode 的地址    第二个集群 NameNode 的地址
+bin/hadoop distcp hdfs://192.168.148.141:9000/shp/heping/aa.txt   hdfs://192.168.148.149:9000/shp/heping/aa.txt
+```
+
+### 2、小文件存档
+
+**HDFS 存储小文件的弊端**
+
+> 每个文件均按块存储，每个块的元数据存储在 NameNode 的内存中，因此 HDFS 存储小文件会非常低效。**因为大量的小文件会耗尽 NameNode 中的大部分内存**。（文件已数据块存储在 DataNode 上，但是在 NameNode 上会存储数据块的索引，占 150 个字节，这个索引指向 DataNode 的数据块，假如你有几百万的小文件，那么这几百万个小文件都要有索引存储在 NameNode 中，NameNode 的内存很快就会被耗光。假设你有一个很大的而文件存储在 DataNode 上，它在 NameNode 上也有索引，也占  150 个字节，所以存储小文件会非常低效）。但注意，存储小文件所需要的磁盘容量和数据块的大小无关。例如，一个 1MB 的文件设置为 128M 的块存储，实际使用的是 1MB 的磁盘空间，而不是 128MB
+
+**解决存储小文件的办法：**
+
+> HDFS 存档文件或 HAR 文件，是一个更高效的文件存档工具，它将文件存入 HDFS 块，在减少 NameNode 内存使用的同时，允许对文件进行透明的访问。具体来说，HDFS 存档文件对内还是一个一个独立文件，对 NameNode 而言却是一个整体，减少了 NameNode 的内存。 
+
+案例：
+
+1）、需要启动 YARN 进程
+
+```shell
+./start-yarn.sh
+```
+
+2）、归档文件
+
+把 /shp/heping 下面的所有文件归档成一个叫 input.har 的归档文件，并把归档后文件存储到 /shp/output 下面
+
+```shell
+# 第一个参数 input.har 是归档成一个叫什么名字的文件
+# 第二个参数 /shp/heping 是把哪个目录下的所有文件进行归档
+# 第三个参数 /shp/output 是归档成一个文件，这个文件的存放位置，这个目录一开始一定不能存在
+hadoop archive -archiveName input.har -p /shp/heping/ /shp/output
+```
+
+3）、查看归档
+
+```shell
+hadoop fs -ls -R har:///shp/output/input.har
+# 可以发现这个 har 文件里面是你之前进行归档的一个一个小文件
+```
+
+4）、解归档文件
+
+```shell
+hadoop fs -cp har:///shp/output/input.har/* /shp/heping
+```
+
+### 3、回收站
+
+开启回收站功能，可以将删除的文件在不超时的情况下，恢复原数据，起到防止误删除的作用
+
+1）、开启回收站功能参数说明
+
+> - 默认值 `fs.trash.interval=0`， 0 表示禁用回收站；其他值表示设置文件的存活时间
+> - 默认值 `fs.trash.checkpoint.interval=0`，检查回收站的间隔时间。如果该值为 0，则该值设置和 `fs.trash.interval` 的参数值相等
+> - 要求 `fs.trash.checkpoint.interval` <= `fs.trash.interval`
+
+2）、启用回收站
+
+修改 `core-site.xml` ，配置垃圾回收时间为 1 分钟
+
+```shell
+vim core-site.xml 
+<property>
+   <name>fs.trash.interval</name>
+	<value>1</value>
+</property>
+```
+
+3）、查看回收站
+
+回收站在集群中的路径：/shp/heping/.Trash （hdfs 上）
+
+如果你去查看的话，会发现没有权限，因为默认用户时 `dr.who`
+
+4）、修改访问回收站用户名称
+
+进入回收站默认用户名称是 `dr.who` ，修改为 root 用户
+
+```shell
+vim core-site.xml 
+<property>
+  <name>hadoop.http.staticuser.user</name>
+  <value>root</value>
+</property>
+```
+
+5）、恢复回收站数据
+
+```shell
+bin/hadoop fs -mv 回收站文件目录 要恢复在哪个目录
+```
+
+6）、清空回收站
+
+```shell
+bin/hadoop fs -expunge
+```
+
+
+
+
+
+
+
+
+
+
+
 
 
 

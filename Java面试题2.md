@@ -433,6 +433,234 @@ public final int getAndAddInt(Object var1, long var2, int var4) {
 >
 > 5、线程A 重新获取 value 值，因为变量 value 被 volatile 修饰，所以其它线程对他修改，线程A 总是能看到，线程A 继续执行 compareAndSwapInt 进行比较替换，直到成功。
 
+**CAS 简单小总结：**
+
+> CAS（CompareAndSwap）
+>
+> 比较当前工作内存中的值和主内存中的值，如果相同则执行规定操作，否则继续比较直到主内存和工作内存中的值一致为止
+>
+> CAS 应用
+>
+> CAS 有三个操作数，内存值V ，旧的预期值A ，要修改的更新值B，当且仅当预期值A 和内存值V 相同时，将内存值V 修改为 B，否则什么都不做
+
+#### 8、CAS 缺点
+
+> - 循环时间长开销很大
+>
+>   - ```java
+>     // 我们可以看到 getAndAddInt 方法执行时，有个 do while
+>     public final int getAndAddInt(Object var1, long var2, int var4) {
+>         int var5;
+>         do {
+>             var5 = this.getIntVolatile(var1, var2)
+>         } while(!this.compareAndSwapInt(var1,var2,var5,var5 + var4));
+>         return var5;
+>     }
+>     // 如果 cas 失败，会一直进行尝试。如果 cas 长时间一直不成功，可能会给 cpu 带来很大的开销(一直在循环，一直在循环)
+>     ```
+>
+> - 只能保证一个共享变量的原子操作
+>
+>   - 当对一个共享变量执行操作时，我们可以使用循环 CAS 的方式来保证原子操作，但是对于多个共享变量操作时，循环 CAS 就无法保证操作的原子性，这时候就可以用锁来保证原子性。
+>
+> - ABA 问题
+
+#### 9、ABA 问题
+
+CAS 最大的缺点就是 ABA 问题。
+
+> CAS 算法实现的一个重要前提就是需要取出内存中某时刻的数据并在当下时刻比较并替换，那么在这个时间差里会导致数据的变化。
+>
+> 比如说一个线程 one 从内存位置V 中取出 A，这时候另一个线程 two 也从内存中取出 A，并且线程 two 进行了一些操作将值变成了 B，然后线程two 又将 V 位置的数据变成 A，这时候线程 one 进行 CAS 操作发现内存中仍然是 A，然后线程 one 操作成功。
+>
+> **尽管线程 one 的 CAS 操作成功，但是不代表这个过程就是没有问题的。**
+
+#### 10、AtomicReference 原子引用
+
+```java
+class User {
+    private String userName;
+    private int age;
+	// getter  setter....
+	// toString().....
+}
+public class AtomicReferenceDemo {
+    public static void main(String[] args) {
+
+        User user1 = new User("shp",12);
+        User user2 = new User("heping",22);
+
+        AtomicReference<User> atomicReference = new AtomicReference<User>();
+        // 我把 user1 设置到这个原子引用里面，按照 JMM 内存模型，现在主存中的共享变量就是这个 user1 指向的内存空间
+        atomicReference.set(user1);
+        // 期望值是 user1，更新值是 user2，如果内存值和期望值一样，我就把内存值更新成 user2
+        // 执行结果是：true	User{userName='heping', age=22}
+        System.out.println(atomicReference.compareAndSet(user1,user2) + "\t" + atomicReference.get().toString());
+
+        // 如果我再打印一遍
+        // 执行结果：false	User{userName='heping', age=22}，因为此时内存值已经是 user2 了
+        System.out.println(atomicReference.compareAndSet(user1,user2) + "\t" + atomicReference.get().toString());
+    }
+}
+```
+
+#### 11、AtomicStampedReference 版本号原子引用
+
+**大致原理：**
+
+```
+t1线程： 100 1
+t2线程： 100 1   101 2   100 3
+
+假设主存中的值现在都是 100，版本号是 1，t2线程现在把 100 改成 101，在改的同时我让版本号加 1，此时版本号变成 2，然后我又把 101 改成 100，同时版本号加 1，此时版本号变成 3，这时候 t1 线程来修改，虽然期望值是 100 没问题，但是获取到此时的版本号，和我期望的版本号 1，不一样，说明有人修改过，那么 t1 线程就修改失败。
+```
+
+
+
+#### 12、ABA 问题解决
+
+**ABA 问题出现：**
+
+```java
+public class ABADemo {
+
+    private static AtomicReference<Integer> atomicReference = new AtomicReference<Integer>(100);
+    public static void main(String[] args) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                // 期望值是 100，更新值是 101，如果主存中的值是 100，我就把它改成 101
+                atomicReference.compareAndSet(100,101);
+                // 期望值是 101，更新值是 100，如果主存中的值是 101，我就把它改成 100
+                atomicReference.compareAndSet(101,100);
+            }
+        },"t1").start();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    // 先让它睡 1 秒钟，目的就是让 t1 线程先执行，保证 t1 线程完成一次 ABA 操作
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                // 期望值是 100，更新值是 200，如果主存中的值是 100，那么我就把它改成 200
+                System.out.println(atomicReference.compareAndSet(100,200) + "\t" + atomicReference.get());
+                // 结果是 true	200
+            }
+        },"t2").start();
+        // 以上就产生了 ABA 问题，t1线程先把主存值从 100 改成 101，然后又从 101 改成 100，操作完成后 t2 线程开始执行
+        // 拿到的主存值是 100 和期望值一样，因此更新成功，但是这中间其实数据有过变动
+    }
+}
+```
+
+**ABA 问题解决：**
+
+```java
+public class ABADemo {
+    // 包含一个版本号的原子引用
+    private static AtomicStampedReference<Integer> atomicStampedReference = new AtomicStampedReference<Integer>(100,1);   // 1 表示设定当前版本号是 1
+
+    public static void main(String[] args) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                System.out.println("===================ABA问题解决=================");
+                int stamp = atomicStampedReference.getStamp();  // 获取当前版本号
+                System.out.println(Thread.currentThread().getName() + "第一次版本号：" + stamp);
+                try {
+                    // 这里停 1 秒是为了让下面的 t4 线程拿到和 t3 线程一样的版本号
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                /**
+                 * 四个参数：
+                 * expectedReference ：期望值
+                 * newReference ：更新值
+                 * expectedStamp ：期望的版本号
+                 * newStamp ：更新的版本号
+                 */
+                atomicStampedReference.compareAndSet(100,101,atomicStampedReference.getStamp(),atomicStampedReference.getStamp() + 1);
+                System.out.println(Thread.currentThread().getName() + "第二次版本号：" + atomicStampedReference.getStamp());
+
+                atomicStampedReference.compareAndSet(101,100,atomicStampedReference.getStamp(),atomicStampedReference.getStamp() + 1);
+                System.out.println(Thread.currentThread().getName() + "第三次版本号：" + atomicStampedReference.getStamp());
+            }
+        },"t3").start();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int stamp = atomicStampedReference.getStamp();
+                System.out.println(Thread.currentThread().getName() + "第一次版本号：" + stamp);
+                try {
+                    // 这里停 3 秒是为了让 t3 线程完成一次 ABA 操作
+                    Thread.sleep(3000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                boolean result = atomicStampedReference.compareAndSet(100, 2019, stamp, stamp + 1);
+                System.out.println(Thread.currentThread().getName() + "修改成不成功：" + result);
+                System.out.println("当前实际最新版本号：" + atomicStampedReference.getStamp());
+                System.out.println("当前实际最新值：" + atomicStampedReference.getReference());
+            }
+        },"t4").start();
+
+        // 最终打印结果
+        /**
+         *   t3第一次版本号：1
+             t4第一次版本号：1
+             t3第二次版本号：2
+             t3第三次版本号：3
+             t4修改成不成功：false
+             当前实际最新版本号：3
+             当前实际最新值：100
+         */
+        
+        // t3线程已经做了一次 ABA 的操作， t4 线程在执行的时候除了判断期望值和内存值一不一样以外，还判断当前版本号和期望版本号一不一样，如果都一样，才修改成功，有一个不一样就修改失败
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -2345,6 +2345,43 @@ bin/hadoop fs -mv 回收站文件目录 要恢复在哪个目录
 bin/hadoop fs -expunge
 ```
 
+### 4、快照管理
+
+快照相当于对目录做一个备份。并不会立即复制所有文件，而是指向同一个文件。当写入发生时，才会产生新文件。
+
+> - `hdfs dfsadmin -allowSnapshot 路径`
+>   - 开启指定目录的快照功能
+> - `hdfs dfsadmin -disallowSnapshot 路径`
+>   - 禁用指定目录的快照功能，默认是禁用
+> - `hdfs dfs -createSnapshot 路径`
+>   - 对目录创建快照
+> - `hdfs dfs -createSnapshot 路径 名称`
+>   - 创建一个指定名称的快照
+> - `hdfs dfs -renameSnapshot 路径 旧名称 新名称`
+>   - 重命名快照
+> - `hdfs lsSnapshottableDir`
+>   - 列出当前用户所有可快照目录
+> - `hdfs snapshotDiff 路径1 路径2`
+>   - 比较两个快照目录的不同之处
+> - `hdfs dfs -deleteSnapshot 路径 快照名称`
+>   - 删除快照
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

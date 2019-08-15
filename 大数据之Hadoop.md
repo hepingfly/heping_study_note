@@ -2398,15 +2398,49 @@ bin/hadoop fs -expunge
 > - 不擅长 DAG（有向图）计算
 >   - 多个应用程序存在依赖关系，后一个应用程序的输入为前一个的输出。在这种情况下，MapReduce 并不是不能做，而是使用后每个 MapReduce 作业的输出结果都会写入到磁盘，会造成大量的磁盘 IO，导致性能非常低下
 
+### MapReduce 核心思想
 
+![MapReduce核心思想](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/mapReduce%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3.png)
 
+### MapReduce 进程
 
+一个完整的 MapReduce 程序在分布式运行时，有三类实例进程：
 
+> 1）、MrAppMaster ：负责整个程序的过程调度及状态协调
+>
+> 2）、MapTask ：负责 Map 阶段的整个数据处理流程
+>
+> 3）、ReduceTask ：负责 Reduce 阶段的整个数据处理流程
 
+### MapReduce 编程规范
 
+用户编写的程序分成三个部分：Mapper 、Reducer  和 Driver
 
+1）、Mapper 阶段
 
+> 1、用户自定义的 Mapper 要继承自己的父类
+>
+> 2、Mapper 的输入数据是 KV 对的形式（KV 的类型可以自定义）
+>
+> 3、Mapper 中的业务逻辑写在 map() 方法中
+>
+> 4、Mapper 的输出数据是 KV 对的形式（KV 的类型可以自定义）
+>
+> 5、map() 方法（MapTask进程）对每一个 KV 调用一次
 
+2）、Reducer 阶段
+
+> 1、用户自定义的 Reducer 要继承自己的父类
+>
+> 2、Reducer 的输入数据类型对应 Mapper 的输出数据类型，也是 KV
+>
+> 3、Reducer 的业务逻辑写在 reduce() 方法中
+>
+> 4、ReduceTask 进程对每一组相同 k 的 KV 组调用一次 reduce() 方法
+
+3）、Driver 阶段
+
+> 相当于 YARN 集群的客户端，用于提交我们整个程序到 YARN 集群，提交的是封装了 MapReduce 程序相关运行参数的 job 对象
 
 
 

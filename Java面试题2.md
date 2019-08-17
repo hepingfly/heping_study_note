@@ -625,7 +625,152 @@ public class ABADemo {
 }
 ```
 
+### 二、集合类之线程不安全
 
+#### 1、ArrayList 并发修改异常
+
+```java
+public class ContainerNotSafeDemo {
+    /**
+     * ArrayList 是线程不安全的，线程不安全在哪？
+     * 因为它的 add 方法，没有加锁
+     */
+    public static void main(String[] args) {
+        List<String> list = new ArrayList<String>();
+        // 构建一个线程安全的 ArrayList,后面多线程对这个 safeList 进行修改时，就不会存在线程安全问题
+        List<String> safeList = Collections.synchronizedList(new ArrayList<String>());
+        for (int i = 0; i < 300; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    list.add("a");
+                    System.out.println(list);
+                }
+            }).start();
+        }
+        // 如果是多线程并发对 ArrayList 进行修改时，就容易发生  java.util.ConcurrentModificationException
+    }
+}
+```
+
+#### 2、CopyOnWriteArrayList 写时复制
+
+ArrayList 发生并发修改异常的原因就是，集合正在被一个线程写的时候，另一个线程又多来读。或者集合正在被一个线程读的时候，另一个线程又过来写。这样就容易发生并发修改异常，即：`java.util.ConcurrentModificationException`
+
+
+
+```java
+public class ContainerNotSafeDemo {
+    public static void main(String[] args) {
+        // 使用 CopyOnWriteArrayList 防止线程安全问题
+        List<String> list = new CopyOnWriteArrayList<String>();
+        for (int i = 0; i < 300; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    list.add("a");
+                    System.out.println(list);
+                }
+            }).start();
+        }
+    }
+}
+```
+
+下面是 CopyOnWriteArrayList 的 add 方法：
+
+```java
+public boolean add(E e) {
+        final ReentrantLock lock = this.lock;
+        lock.lock();    // 一个线程进来之后先加锁
+        try {
+            Object[] elements = getArray();    // 获取到这个数组对象
+            int len = elements.length;        // 获取到数组的长度
+            Object[] newElements = Arrays.copyOf(elements, len + 1);  // 在原有数组的基础上 copy 一份，数组长度在原来基础上加 1，因为我要往数组里面添加一个元素  add(E e)  添加 e 这个元素   
+            newElements[len] = e;  // 把通过 add(E e) e 这个元素加到新数组的末尾
+            setArray(newElements);   // 原有数组的引用断掉，指向新的数组
+            return true;    // 操作完成返回 true
+        } finally {
+            lock.unlock();    // 最后释放锁
+        }
+    }
+```
+
+**写时复制：**
+
+> CopyOnWrite 容器，即写时复制容器。往一个容器添加元素的时候，不直接往当前容器 `Object[]` 添加，而是先将当前容器 `Object[]` 进行 copy ，复制出一个新的容器 `Object[] newElements` ，然后往新的容器 `Object[] newElements` 里添加元素，添加完元素之后，再将原容器的引用指向新的容器 `setArray(newElements)` 这样做的好处是可以对 CopyOnWrite 容器进行并发的读，而不需要加锁，因为当前容器不会添加任何元素。所以 CopyOnWrite 容器也是一种读写分离的思想，读和写不同的容器。
+
+**总结一下关于 ArrayList 线程不安全的解决方案：**
+
+> - 将 `new ArrayList()`  换成 `new Vector()`   Vector 是线程安全类
+> -  使用  `Collections.synchronizedList(new ArrayList<>())`
+> - 使用 `new CopyOnWriteArrayList()`
+
+#### 3、CopyOnWriteArraySet 
+
+```java
+public class ContainerNotSafeDemo {
+    public static void main(String[] args) {
+        // 如果直接用 HashSet 会有线程安全问题
+//        Set set = new HashSet();
+        Set<String> set = new CopyOnWriteArraySet<String>();
+        for (int i = 0; i < 300; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    set.add("a");
+                    System.out.println(set);
+                }
+            }).start();
+        }
+    }
+}
+```
+
+#### 4、ConcurrentHashMap
+
+```java
+public class ContainerNotSafeDemo {
+    public static void main(String[] args) {
+        // 如果直接用 HashSet 会有线程安全问题
+//        Map<String,String> map = new HashMap<String,String>();
+        Map<String,String> map = new ConcurrentHashMap<String,String>();
+        for (int i = 0; i < 300; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    map.put(Thread.currentThread().getName(),"a");
+                    System.out.println(map);
+                }
+            }).start();
+        }
+    }
+}
+```
+
+### 三、Java 锁
+
+#### 1、公平锁和非公平锁
+
+> 公平锁
+>
+> - 是指多个线程按照申请锁的顺序来获取锁，类似排队打饭，先来后到
+>
+> 非公平锁
+>
+> - 是指多个线程获取锁的顺序并不是按照申请锁的顺序，有可能后申请的线程比先申请的线程优先获取锁。在高并发的情况下，有可能会造成优先级翻转或饥饿现象
+
+**注：**
+
+> 并发包中 ReentrantLock 的创建可以指定构造函数的 boolean 类型来得到公平锁和非公平锁，默认是非公平锁
+
+
+
+**两者的区别：**
+
+> 公平锁，就是很公平，在并发环境中，每个线程在获取锁时会先查看此锁维护的等待队列，如果为空，或者当前线程是等待队列的第一个，就占有锁，否则就会加入到等待队列中，以后会按照先进先出的规则从队列中取到自己。
+>
+> 非公平锁：非公平锁比较粗鲁，上来就直接尝试占有锁，如果尝试失败，就再采用类似公平锁的那种方式。
 
 
 

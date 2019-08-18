@@ -772,6 +772,213 @@ public class ContainerNotSafeDemo {
 >
 > 非公平锁：非公平锁比较粗鲁，上来就直接尝试占有锁，如果尝试失败，就再采用类似公平锁的那种方式。
 
+#### 2、可重入锁和递归锁
+
+**可重入锁（也叫递归锁）：**
+
+> 指的是同一线程外层函数获得锁之后，内层递归函数仍然能够获取该锁的代码，同一个线程在外层方法获取锁的时候，在进入内层方法会自动获取锁。
+>
+> 也就是说，线程可以进入任何一个它已经拥有的锁所同步着的代码块
+
+**注：**
+
+> `ReentrantLock/Synchronized` 就是一个典型的可重入锁
+
+```java
+public void synchronized method1() {
+    method2();   // 一个线程进来调用 method1 ，method1 是同步方法，那么这个线程获取锁，在 method1 中调用 method2，而 method2 也是同步方法，那么这个线程调用 method2 自动获取锁，是同一把锁
+}
+public void synchronized method2() {
+    
+}
+```
+
+**可重入锁最大的作用就是避免死锁**
+
+Synchronized 可重入锁案例：
+
+```java
+class Phone {
+    public synchronized void sendMsg() {
+        System.out.println(Thread.currentThread().getName()+ "\t invoke sendMsg");
+        sendEmail();  // 比如说 t1 线程在外层方法获取到锁之后，在进入内层方法 sendEmail 会自动获取锁
+    }
+    public synchronized void sendEmail() {
+        System.out.println(Thread.currentThread().getName() + "\t invoke sendEmail");
+    }
+}
+public class ReenterLockDemo {
+    public static void main(String[] args) {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Phone phone = new Phone();
+                phone.sendMsg();
+            }
+        },"t1").start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                Phone phone = new Phone();
+                phone.sendMsg();
+            }
+        },"t2").start();
+    }
+    
+//打印结果：
+//t1	 invoke sendMsg
+//t2	 invoke sendMsg
+//t2	 invoke sendEmail
+//t1	 invoke sendEmail
+```
+
+ReentrantLock 可重入锁案例：
+
+```java
+class Phone implements Runnable {
+    @Override
+    public void run() {
+        get();
+    }
+    Lock lock = new ReentrantLock();
+    public void get() {
+        lock.lock();
+        try {
+            System.out.println(Thread.currentThread().getName() + "invoke get");
+            set();  // 线程在外层方法获取锁之后，在内层方法自动获取锁
+        } finally {
+            lock.unlock();
+        }
+    }
+    public void set() {
+        lock.lock();
+        try {
+            System.out.println(Thread.currentThread().getName() + "invoke set");
+        } finally {
+            lock.unlock();
+        }
+    }
+
+}
+public class ReenterLockDemo {
+    public static void main(String[] args) {
+        Phone phone = new Phone();
+        Thread t1 = new Thread(phone,"t1");
+        Thread t2 = new Thread(phone, "t2");
+        t1.start();
+        t2.start();
+    }
+}
+
+// 打印结果
+// t1invoke get
+// t1invoke set
+// t2invoke get
+// t2invoke set
+```
+
+#### 3、自旋锁
+
+是指尝试获取锁的线程不会立即阻塞，而是采用循环的方式去尝试获取锁。这样的好处是减少线程上下文切换的消耗，缺点是循环会消耗 CPU。
+
+```java
+/**
+ * 实现一个自旋锁
+ * 自旋锁的好处：循环比较获取直到成功为止，没有类似 wait 的阻塞
+ *
+ * 通过 CAS 操作完成自旋锁，A 线程先进来调用 myLock 方法自己持有锁 5 秒钟,
+ * B 随后进来后发现当前有线程持有锁，不是 null ，所以只能通过自旋等待，直到 A 释放锁后 B 随后抢到
+ */
+public class SpinLockDemo {
+    // 原子引用线程，现在主存中共享变量是 Null ，因为我在 new 的时候没有给任何初始值
+    AtomicReference<Thread> atomicReference = new AtomicReference<Thread>();
+
+    public void myLock() {
+        Thread thread = Thread.currentThread();
+        System.out.println(thread.getName() + "线程 come in");
+        while (!atomicReference.compareAndSet(null,thread)) {
+
+        }
+    }
+
+    public void myUnLock() {
+        Thread thread = Thread.currentThread();
+        atomicReference.compareAndSet(thread,null);
+        System.out.println(thread.getName() + "invoke myUnlock");
+    }
+    public static void main(String[] args) {
+        SpinLockDemo lockDemo = new SpinLockDemo();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                lockDemo.myLock();
+                try {
+                    // 暂停 5 秒钟
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                lockDemo.myUnLock();
+
+            }
+        },"AA").start();
+
+        try {
+            // 睡 1 秒钟，保证让线程1 先启动
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                lockDemo.myLock();
+                lockDemo.myUnLock();
+            }
+        },"BB").start();
+    }
+}
+```
+
+解释一下上面这段代码：
+
+> 上面这段代码是通过 CAS 完成自旋锁，myLock 方法的作用是期望主存中的值为 null ，如果主存中的值为 null ，就把它更新为当前 thread。myUnLock 方法的作用是期望主存中的值为当前 thread，如果主存中的值为当前 thread 对象，就把它更新为 null。
+>
+> 在 main 方法中线程AA 首先进来，调用 myLock 方法，打印 AA线程 come in，1 秒钟之后 BB线程启动，调用 myLock 方法，因为 AA 先调用并且把主存中的值变成了当前 thread 对象，BB 线程再调用，期望值是 null ，但主存中的值不是 null ，所以 BB 线程会一只在 while 循环中循环，也就是自旋，等 AA 线程 5 秒钟时间到了，调用 myUnlock 方法，将主存中的值变成 null ，此时 BB 线程在循环判断时，满足条件，自旋结束。紧接着调用 myUnlock 方法，完成整个线程。
+>
+> 通过上面也能看出自旋锁的好处，就是一直在循环比较，不会有阻塞，但是如果循环条件一直得不到满足，也会造成 CPU 压力增大。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

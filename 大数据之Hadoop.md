@@ -2402,6 +2402,8 @@ bin/hadoop fs -expunge
 
 ![MapReduce核心思想](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/mapReduce%E6%A0%B8%E5%BF%83%E6%80%9D%E6%83%B3.png)
 
+
+
 ### MapReduce 进程
 
 一个完整的 MapReduce 程序在分布式运行时，有三类实例进程：
@@ -2441,6 +2443,73 @@ bin/hadoop fs -expunge
 3）、Driver 阶段
 
 > 相当于 YARN 集群的客户端，用于提交我们整个程序到 YARN 集群，提交的是封装了 MapReduce 程序相关运行参数的 job 对象
+
+
+
+### WordCount 案例
+
+#### 1、案例分析
+
+按照 MapReduce 编程规范，分别编写 Mapper、Reducer、Driver
+
+![wordCount 案例分析](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/wordCount%E6%A1%88%E4%BE%8B%E5%88%86%E6%9E%90.png)
+
+#### 2、Mapper 编写
+
+```java
+/**
+ * map 阶段
+ * KEYIN 输入数据的 key 类型
+ * VALUEIN 输入数据的 value 类型
+ * KEYOUT 输出数据的 key 类型     java 1 html 2
+ * VALUEOUT 输出数据的 value 类型
+ */
+public class WordCountMapper extends Mapper<LongWritable,Text,Text,IntWritable> {
+
+    Text k = new Text();
+    IntWritable v = new IntWritable();
+    /**
+     * 重写父类中的 map 方法
+     * @param key  这个参数表示行的偏移量
+     * @param value 这个参数表示这一行实实在在的内容
+     * @param context
+     */
+    @Override
+    protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+        // Java Java
+        // 获取一行
+        String line = value.toString();
+        // 根据空格去切割单词
+        String[] words = line.split(" ");
+        // 循环写出
+        for (String word : words) {
+//            Text k = new Text();     提出去，不要在 for 循环里面创建对象
+            k.set(word);
+//            IntWritable v = new IntWritable();
+            v.set(1);
+            context.write(k,v);
+        }
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

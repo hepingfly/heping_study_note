@@ -2583,7 +2583,157 @@ public class WordCountDriver {
 
 ### 3、序列化案例
 
+#### 1、案例需求说明
+
 ![bean序列化案例](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/bean%E5%BA%8F%E5%88%97%E5%8C%96%E6%A1%88%E4%BE%8B.png)
+
+#### 2、序列化案例之 bean 
+
+```java
+/**
+ * 序列化 bean 需要实现 Writable 接口
+ */
+public class FlowBean implements Writable {
+
+    /**
+     * 手机上行流量
+     */
+    private long upFlow;
+
+    /**
+     * 手机下行流量
+     */
+    private long downFlow;
+
+    /**
+     * 手机总流量
+     */
+    private long sumFlow;
+
+    public FlowBean() {
+    }
+
+    public FlowBean(long upFlow, long downFlow) {
+        this.upFlow = upFlow;
+        this.downFlow = downFlow;
+        this.sumFlow = upFlow + downFlow;
+
+    }
+
+    /**
+     * 序列化方法
+     * @param dataOutput
+     */
+    @Override
+    public void write(DataOutput dataOutput) throws IOException {
+        dataOutput.writeLong(upFlow);
+        dataOutput.writeLong(downFlow);
+        dataOutput.writeLong(sumFlow);
+    }
+
+    /**
+     * 反序列化方法
+     * @param dataInput
+     */
+    @Override
+    public void readFields(DataInput dataInput) throws IOException {
+        // 反序列化的顺序必须和序列化的顺序一致（序列化的时候是把序列化的对象放到队列里面，先进先出，因此反序列化也要按顺序进行）
+        upFlow = dataInput.readLong();
+        downFlow = dataInput.readLong();
+        sumFlow = dataInput.readLong();
+
+    }
+
+    @Override
+    public String toString() {
+        return upFlow +
+                "\t" + downFlow +
+                "\t" + sumFlow;
+    }
+	// getter setter 方法...
+}
+```
+
+#### 3、序列化案例之 Mapper
+
+```java
+/**
+ * Mapper 代码
+ * 泛型第一个参数表示偏移量
+ * 第二个参数表示读取一行内容
+ * 第三个参数表示 Mapper 输出的时候用手机号作为 key
+ * 第四个参数表示 Mapper 输出的时候用 FlowBean 作为 value
+ *
+ */
+public class FlowCountMapper extends Mapper<LongWritable,Text,Text,FlowBean> {
+
+    Text k = new Text();
+    FlowBean v = new FlowBean();
+    @Override
+    protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+        /*
+         * 输入数据格式：
+         * 7 18375438796 172.31.3.196 1116 954 200
+         */
+        // 1.获取一行
+        String line = value.toString();  // value 就是这一行数据的内容,是 Text 类型，需要把它变成 String 类型
+
+        // 2.使用 \t 切割这一行内容
+        String[] fields = line.split("\t");
+
+        // 3. 封装对象
+        k.set(fields[1]);   // 封装手机号作为 key
+        long upFlow = Long.parseLong(fields[fields.length - 3]);
+        long downFlow = Long.parseLong(fields[fields.length - 2]);
+        v.setUpFlow(upFlow);
+        v.setDownFlow(downFlow);
+
+        // 4. 写出
+        context.write(k,v);
+    }
+}
+```
+
+#### 4、序列化之 Reducer
+
+```java
+/**
+ * Reducer 代码
+ * 泛型第一个和第二个参数是 Mapper 的输出参数
+ * 第三个参数：输出的 key ：用手机号作为输出的 key
+ * 第四个参数：输出的 value ：用 FlowBean 作为输出的 value
+ */
+public class FlowCountReducer extends Reducer<Text,FlowBean,Text,FlowBean> {
+    FlowBean v = new FlowBean();
+    /**
+     *
+     * @param key 传进来的 key 是手机号
+     * @param values 传进来的 values 是 FlowBean 集合
+     * @param context
+     */
+    @Override
+    protected void reduce(Text key, Iterable<FlowBean> values, Context context) throws IOException, InterruptedException {
+        // 手机号    上行流量 下行流量
+        // 18375438907 2481 793
+        // 18375438907 8976 676
+
+        // 1.累加求和
+        long sumUpflow = 0L;
+        long sumDownflow = 0L;
+        for (FlowBean flow : values) {
+            sumUpflow += flow.getUpFlow();
+            sumDownflow += flow.getDownFlow();
+        }
+        long sum = sumUpflow + sumDownflow;
+        v.setUpFlow(sumUpflow);
+        v.setDownFlow(sumDownflow);
+        v.setSumFlow(sum);
+
+        // 2.写出
+        context.write(key,v);
+    }
+}
+```
 
 
 

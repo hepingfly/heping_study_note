@@ -949,6 +949,191 @@ public class SpinLockDemo {
 >
 > 通过上面也能看出自旋锁的好处，就是一直在循环比较，不会有阻塞，但是如果循环条件一直得不到满足，也会造成 CPU 压力增大。
 
+#### 4、读写锁
+
+**独占锁：**
+
+> 指该锁一次只能被一个线程所持有。对 `ReentrantLock` 和 `Synchronized` 而言都是独占锁
+>
+> 写锁是读占锁。
+
+**共享锁：**
+
+> 指该锁可以被多个线程所持有。
+>
+> 对 `ReentrantReadWriteLock` 其读锁是共享锁，其写锁是独占锁
+>
+> 读锁的共享锁可保证并发读是非常高效的。读写、写读、写写的过程是互斥的。
+>
+> 读锁是共享锁。
+
+```java
+/**
+ * 多个线程同时读一个资源类没有任何问题，所以为了满足并发量，读取共享资源应该是可以同时进行的
+ * 但是如果一个线程想去写共享资源，就不应该再有其他线程可以对该资源进行读和写
+ * 总结：
+ * 读-读能共存
+ * 读-写不能共存
+ * 写-写不能共存
+ *
+ * 写操作：原子 + 独占，整个过程必须是一个完整的统一体，中间不许被分割，被打断
+ */
+public class ReadWriteLockDemo {
+    public static void main(String[] args) {
+        MyCache cache = new MyCache();
+        for (int i = 0; i < 5; i++) {
+            final int j = i;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    cache.put(String.valueOf(j),String.valueOf(j));
+
+                }
+            },String.valueOf(i)).start();
+
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    cache.get(String.valueOf(j));
+                }
+            },String.valueOf(i)).start();
+        }
+
+    }
+}
+
+class MyCache {
+    private volatile Map<String,Object> map = new HashMap<String,Object>();
+
+    public void put(String key, Object value) {
+        System.out.println(Thread.currentThread().getName() + "正在写入：" + key);
+        try {
+            // 睡 300 毫秒，模拟网络拥堵情况
+            Thread.sleep(300);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        map.put(key,value);
+        System.out.println(Thread.currentThread().getName() + "写入完成：" + key);
+    }
+
+    public void get(String key) {
+        System.out.println(Thread.currentThread().getName() + "正在读取");
+        Object result = map.get(key);
+        System.out.println(Thread.currentThread().getName() + "读取结果：" + result);
+    }
+}
+/*
+执行结果：
+0正在写入：0               0 号线程还未写入完成就被别的线程打断了
+0正在读取
+0读取结果：null
+1正在写入：1
+1正在读取
+1读取结果：null
+2正在写入：2
+2正在读取
+2读取结果：null
+3正在写入：3
+3正在读取
+3读取结果：null
+4正在写入：4
+4正在读取
+4读取结果：null
+0写入完成：0          到这里 0 号线程才写入完成，中间被别的线程打断
+2写入完成：2
+3写入完成：3
+4写入完成：4
+1写入完成：1
+*/
+
+// 上面的代码可能出现的问题就是，我一个线程在执行写操作的时候，另一个线程抢到执行权，进行读操作，写操作还没执行完就被打断。=====我们要求写操作必须是原子 + 读占 中途不允许被打断=====所以这样是有问题的。
+```
+
+**下面使用读写锁来解决：**
+
+```java
+public class ReadWriteLockDemo {
+    public static void main(String[] args) {
+        MyCache cache = new MyCache();
+
+        for (int i = 0; i < 5; i++) {
+            final int j = i;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    cache.put(String.valueOf(j),String.valueOf(j));
+
+                }
+            },String.valueOf(i)).start();
+
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    cache.get(String.valueOf(j));
+                }
+            },String.valueOf(i)).start();
+        }
+
+    }
+}
+
+class MyCache {
+    private volatile Map<String,Object> map = new HashMap<String,Object>();
+    private ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
+    public void put(String key, Object value) {
+        lock.writeLock().lock(); // 上锁
+        try {
+            System.out.println(Thread.currentThread().getName() + "正在写入：" + key);
+            try {
+                // 睡 300 毫秒，模拟网络拥堵情况
+                Thread.sleep(300);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            map.put(key,value);
+            System.out.println(Thread.currentThread().getName() + "写入完成：" + key);
+        } finally {
+            lock.writeLock().unlock();  // 释放锁
+        }
+
+    }
+
+    public void get(String key) {
+        lock.readLock().lock();   // 上锁
+        try {
+            System.out.println(Thread.currentThread().getName() + "正在读取");
+            Object result = map.get(key);
+            System.out.println(Thread.currentThread().getName() + "读取结果：" + result);
+        } finally {
+            lock.readLock().unlock();   // 释放锁
+        }
+
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -2735,21 +2735,36 @@ public class FlowCountReducer extends Reducer<Text,FlowBean,Text,FlowBean> {
 }
 ```
 
+#### 5、序列化之 Driver
 
+```java
+/**
+ * Driver 代码
+ */
+public class FlowCountDriver {
+    public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+        // 1. 获取 Job 对象
+        Job job = Job.getInstance(new Configuration());
+        // 2. 设置 jar 路径
+        job.setJarByClass(FlowCountDriver.class);
+        // 3. 关联 Mapper 和 Reducer
+        job.setMapperClass(FlowCountMapper.class);
+        // 4. 设置 Mapper 输出的 key 和 value 类型
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(FlowBean.class);
+        // 5.设置最终输出的 key 和 value 类型
+        job.setOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(FlowBean.class);
+        // 6.设置输入输出路径
+        FileInputFormat.setInputPaths(job,new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        // 7.提交 job
+        boolean result = job.waitForCompletion(true);
+        System.exit(result?0:1);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+    }
+}
+```
 
 ## 八、MapReduce 框架原理
 
@@ -2765,7 +2780,7 @@ MapTask 的并行度决定 Map 阶段的任务处理并发度，进而影响到�
 >
 > 数据切片：数据切片只是在逻辑上对输入进行分片，并不会在磁盘上将其切分成片进行存储
 
-> - 一个 Job 的 Map 阶段并行度由客户端在提交 Job 时的切片数决定
+> - **一个 Job 的 Map 阶段并行度由客户端在提交 Job 时的切片数决定**
 > - 每一个切片分配一个 MapTask 并行实例处理
 > - 默认情况下，切片大小等于 BlockSize
 > - 切片时不考虑数据集整体，而是逐个针对每一个文件单独切片

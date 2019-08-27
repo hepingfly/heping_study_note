@@ -37,13 +37,112 @@
 
 > 客户端不应该依赖它不需要的接口，即一个类对另一个类的依赖应该建立在最小的接口上
 
+**说明：**
+
+> 类A 通过接口 Interface1 依赖类B，类C 通过接口 Interface1 依赖类D，如果接口 Interface1 对于类A 和类C 来说，不是最小接口。那么类B 和类D 必须去实现他们不需要的方法。
+>
+> 因此按照接口隔离原则应该这么处理：
+>
+> 将接口 Interface1 拆分为几个独立的接口，类A 和类C 分别与他们需要的接口建立依赖关系
+
+代码参考：
+
+`<https://github.com/hepingfly/heping_DesignPattern/tree/master/src/com/hepingfly/principle/segregation>`
+
+### 依赖倒转原则
+
+**基本介绍：**
+
+> - 高层模块不应该依赖低层模块，二者都应该依赖其抽象
+> - 抽象不应该依赖细节，细节应该依赖抽象
+> - 依赖倒转原则的中心思想是面向接口编程
+> - 依赖倒转原则是基于这样的设计理念：相对于细节的多变性，抽象的东西要稳定的多。以抽象为基础搭建的架构比以细节为基础的架构要稳定的多。在 Java 中，抽象指的是接口或抽象类，细节就是具体的实现类
+> - 使用接口或抽象类的目的是制定好规范，而不涉及任何具体的操作，把展现细节的任务交给他们的实现类去完成
+
+**依赖关系传递的三种方式：**
+
+> 1、接口传递
+>
+> 2、构造方法传递
+>
+> 3、setter 方式传递
+
+**使用前：**
+
+```java
+/**
+ * 依赖倒转原则
+ */
+public class DependecyInversion {
+    public static void main(String[] args) {
+        Person person = new Person();
+        person.receive(new Email());
+    }
+}
+
+class Email {
+    public String getInfo() {
+        return "电子邮件信息：hello,world";
+    }
+}
+
+/**
+ * 完成 Person 接收消息的功能
+ * 方式一（下面这种方式）分析：
+ * 1. 简单，比较容易想到
+ * 2. 如果我们获取的对象是微信，短信等，则需要新增类，同时 Person 也需要增加相应的接收方法
+ * 3.解决方式：
+ *      引入一个抽象的接口 IReceiver ，表示接收者，这样 Person 类与接口 IReceiver 发生依赖
+ *      因为 Email wechat 等属于接收的参数，让他们各自实现 IReceiver 接口就行
+ */
+class Person {
+    public void receive(Email email) {
+        System.out.println(email.getInfo());
+    }
+}
+```
+
+**使用后：**
+
+```java
+/**
+ * 依赖倒转原则
+ */
+public class DependecyInversion {
+    public static void main(String[] args) {
+        Person person = new Person();
+        person.receive(new Email());
+        person.receive(new Wechat());
+    }
+}
+
+interface IReceiver {
+    public String getInfo();
+}
+
+// 电子邮件
+class Email implements IReceiver {
+    public String getInfo() {
+        return "电子邮件信息：hello,world";
+    }
+}
+
+// 微信
+class Wechat implements IReceiver {
+
+    @Override
+    public String getInfo() {
+        return "电子邮件信息：wechat";
+    }
+}
 
 
-
-
-
-
-
+class Person {
+    public void receive(IReceiver receiver) {
+        System.out.println(receiver.getInfo());
+    }
+}
+```
 
 
 

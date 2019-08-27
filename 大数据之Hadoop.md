@@ -2795,7 +2795,7 @@ MapTask 的并行度决定 Map 阶段的任务处理并发度，进而影响到�
 
 TextInputFormat 是默认的 FileInputFormat 实现类。按行读取每条记录。**键是存储该行在整个文件中的起始字节偏移量，LongWritable 类型。值是这行的内容，不包括任何行终止符。（换行符和回车符），Text 类型。**
 
-示例：
+**示例：**
 
 ```
 一个分片包含了下面 4 条文本记录：
@@ -2811,11 +2811,103 @@ shp
 (36,shp)
 ```
 
+##### 4、KeyValueTextInputFormat
 
+每一行均为一条记录，被分隔符分割为 key 和 value。可以通过在驱动类中设置 `conf.set(KeyValueLineRecordReader.KEY_VALUE_SEPERATOR,"\t")` 来设定分隔符。默认分隔符是 tab（"\t"）。
 
+**示例**
 
+```
+line1	shp nihao
+line2	heping hi
+line3	lalalaabchi
 
+每条记录表示为以下键值对：
+(line1,shp nihao)
+(line2,heping hi)
+(line3,lalalaabchi)
+```
 
+![KeyValueTextInputFormat案例](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-hadoop/KeyValueTextInputFormat%E6%A1%88%E4%BE%8B%E5%88%86%E6%9E%90.png)
+
+**Mapper 代码：**
+
+```java
+/**
+ * 输入数据：
+ *   shp  ni hao
+     heping hi
+     shp lihai
+     heping happy
+   期望输出数据：
+     shp  2
+     heping 2
+ */
+public class KVTextMapper extends Mapper<Text,Text,Text,IntWritable> {
+    IntWritable v = new IntWritable(1); // 遍历一个 key 就把它的 value 次数计为 1次
+    @Override
+    protected void map(Text key, Text value, Context context) throws IOException, InterruptedException {
+        // 我想统计每一行第一个单词相同的次数，所以我只关心第一个单词，至于 value 是什么不重要
+
+        // 写出   shp ni hao
+        context.write(key,v);   // key 就是每一行第一个单词, v 是 1
+    }
+}
+```
+
+**Reducer 代码**
+
+```java
+public class KVTextReducer extends Reducer<Text,IntWritable, Text, IntWritable> {
+    IntWritable v = new IntWritable();
+    @Override
+    protected void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+        // <shp,1>
+        // <shp,1>
+        // 累加求和
+        int sum = 0;
+        for (IntWritable value : values) {
+            sum += value.get();
+        }
+        v.set(sum);
+
+        // 写出
+        context.write(key,v);
+    }
+}
+```
+
+**Driver 代码：**
+
+```java
+public class KVTextDriver {
+    public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+
+        args = new String[]{"",""};
+        Configuration configuration = new Configuration();
+        // 设置切割符，用空格进行切割
+        configuration.set(KeyValueLineRecordReader.KEY_VALUE_SEPERATOR," ");
+        // 1.获取 job 对象
+        Job job = Job.getInstance(configuration);
+        // 2.设置 jar 存储路径
+        job.setJarByClass(KVTextDriver.class);
+        // 3. 关联 mapper 和 reducer 类
+        job.setMapperClass(KVTextMapper.class);
+        job.setReducerClass(KVTextReducer.class);
+        // 4. 设置 mapper 输出的 key 和 value 类型
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(IntWritable.class);
+        // 5. 设置最终输出 key 和 value 类型
+        job.setOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(IntWritable.class);
+        // 6. 设置输入输出路径
+        FileInputFormat.setInputPaths(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        job.setInputFormatClass(KeyValueTextInputFormat.class);
+        // 7. 提交 job
+        job.waitForCompletion(true);
+    }
+```
 
 
 

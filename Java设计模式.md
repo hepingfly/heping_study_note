@@ -144,13 +144,109 @@ class Person {
 }
 ```
 
+### 里式替换原则
 
+**关于面向对象继承性的思考和说明：**
 
+> - 继承包含这样一层含义：父类中凡是已经实现好的方法，实际上是在设定规范和契约，虽然它不强制要求所有的子类必须遵循这些契约，但是如果子类对这些已经实现的方法任意修改，就会对整个继承体系造成破坏。
+> - 继承在给程序设计带来便利的同时，也带来了弊端。比如使用继承会给程序带来侵入性，程序的可移植性降低，增加对象间的耦合性。如果一个类被其它的类所继承，则当这个类需要修改时，必须考虑到所有的子类，并且父类修改后，所有涉及到子类的功能都有可能产生故障。
 
+**基本介绍：**
 
+> - 里式替换原则在 1998 年，由麻省理工学院的一位姓里的女士提出来的
+> - 总的来说，表达的意思就是，所有引用基类的地方必须能透明的使用其子类对象
+> - 在使用继承时，遵循里式替换原则，在子类中尽量不要重写父类的方法
+> - 里式替换原则告诉我们，继承实际上让两个类耦合性增强了，在适当的情况下，可以通过聚合、组合、依赖来解决问题。
 
+```java
+/**
+ * 里氏替换原则
+ */
+public class Liskov {
+    public static void main(String[] args) {
+        A a = new A();
+        System.out.println("3-2=" + a.func1(3,2));
+        B b = new B();
+        // 其实这里我想要调用 A 类中的方法，但是我 B 类重写了，所以这里调用的是 B 类方法
+        System.out.println("4-2=" + b.func1(4,2));   // 就可能导致原来运行正常的相减功能发生错误
 
+    }
+}
 
+class A {
+    // 返回两个数的差
+    public int func1(int num1, int num2) {
+        return num1 - num2;
+    }
+}
+
+// B 继承
+class B extends A {
+    // 在这里可能无意间重写了 A 类的方法
+    public int func1(int a, int b) {
+        return a + b;
+    }
+    public int func2(int a, int b) {
+        return func1(a,b) + 9;
+    }
+}
+```
+
+**解决方法：**
+
+> - 我们发现原来正常的相减功能发生了错误。原因就是类B 无意中重写了父类的方法，造成原有功能出现错误。在实际编程中，我们常常会通过重写父类的方法完成新的功能，这样写起来虽然简单，但整个继承体系的复用性会比较差。特别是运行多态比较频繁的时候。
+> - 通用的做法是：原来的父类和子类都继承一个更通俗的基类，原有的继承关系去掉，采用依赖，聚合，组合等关系代替。
+
+```java
+/**
+ * 里氏替换原则
+ */
+public class Liskov {
+    public static void main(String[] args) {
+        A a = new A();
+        System.out.println("3-2=" + a.func1(3,2));
+        B b = new B(a);
+        // 因为 B 不再继承 A ，因此调用者就不会误以为这是调用 A 中的方法了
+        System.out.println("1+2=" + b.func1(1,2));
+
+        // 如果想调用 A 中的方法
+        System.out.println("4-2=" +b.func3(4,2));
+
+    }
+}
+
+// 创建一个更加基础的基类
+class Base {
+    // 把更加基础的方法和成员写到 Base 类
+}
+
+class A extends Base {
+    // 返回两个数的差
+    public int func1(int num1, int num2) {
+        return num1 - num2;
+    }
+}
+
+// B 继承
+class B extends Base {
+    // 在这里可能无意间重写了 A 类的方法
+    public int func1(int a, int b) {
+        return a + b;
+    }
+    public int func2(int a, int b) {
+        return func1(a,b) + 9;
+    }
+
+    // 如果 B 想使用 A 中的方法
+    A a;
+    public B(A a) {
+        this.a = a;
+    }
+    public int func3(int num1, int num2) {
+        return a.func1(num1,num2);
+    }
+}
+```
 
 
 

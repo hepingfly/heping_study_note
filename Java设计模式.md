@@ -248,7 +248,133 @@ class B extends Base {
 }
 ```
 
+### 开闭原则
 
+**基本介绍：**
+
+> - 开闭原则是编程中最基础，最重要的设计原则
+> - 一个软件实体，如：类，模块，和函数应该对扩展（提供方）开放，对修改（使用方）关闭。用抽象构建框架，用实现扩展细节。
+> - 当程序需要变化时，尽量通过扩展软件实体的行为来实现变化，而不是通过修改已有的代码来实现变化
+> - 编程中遵循其他原则，以及使用设计模式的目的就是遵循开闭原则
+
+**使用前：**
+
+```java
+/**
+ * 开闭原则
+ * 下面代码设计的方式
+ * 优点是比较好理解，简单易操作
+ * 缺点是违反了 ocp 原则，即当我们给类增加新功能的时候，尽量不修改代码，或尽可能少的修改代码
+ * 比如，我们要绘制一个三角形，会发现需要修改大量代码
+ */
+public class Ocp {
+    public static void main(String[] args) {
+        GraphicEditor ge = new GraphicEditor();
+        ge.drawShape(new Rectangle());
+        ge.drawShape(new Circle());
+    }
+}
+
+// 绘图类
+class GraphicEditor {
+    public void drawShape(Shape shape) {
+        if (shape.type == 1) {
+            drawRectangle(shape);
+        } else if (shape.type == 2) {
+            drawCircle(shape);
+        }
+
+    }
+    public void drawRectangle(Shape shape) {
+        System.out.println("矩形");
+    }
+    public void drawCircle(Shape shape) {
+        System.out.println("圆形");
+    }
+
+}
+
+// Shape类，基类
+class Shape {
+    int type;
+}
+
+class Rectangle extends Shape {
+    public Rectangle() {
+        super.type = 1;
+    }
+}
+
+class Circle extends Shape {
+    public Circle() {
+        super.type = 2;
+    }
+}
+```
+
+**使用后：**
+
+```java
+/**
+ * 改进思路：
+ * 把 Shape 做成抽象类，并提供一个抽象的 draw 方法，让子类去实现即可
+ * 这样有新的图形种类时，只需要让新的图形类继承 Shape,并实现 draw 方法，这样使用方就不需要修改代码
+ * 满足了开闭原则
+ */
+public class Ocp {
+    public static void main(String[] args) {
+        GraphicEditor ge = new GraphicEditor();
+        ge.drawShape(new Rectangle());
+        ge.drawShape(new Circle());
+        // 可以很方便的进行扩展，调用方不需要改动，只需要新增一个类,对扩展开放，对修改关闭
+        ge.drawShape(new Triangle());
+    }
+}
+
+// 绘图类
+class GraphicEditor {
+    public void drawShape(Shape shape) {
+        shape.draw();
+    }
+}
+
+// Shape类，基类
+abstract class Shape {
+    int type;
+
+    protected abstract void draw();
+}
+
+class Rectangle extends Shape {
+    public Rectangle() {
+        super.type = 1;
+    }
+
+    @Override
+    protected void draw() {
+        System.out.println("绘制矩形");
+    }
+}
+
+class Circle extends Shape {
+    public Circle() {
+        super.type = 2;
+    }
+
+    @Override
+    protected void draw() {
+        System.out.println("绘制圆形");
+    }
+}
+
+// 假如我现在想扩展一个类
+class Triangle extends Shape {
+    @Override
+    protected void draw() {
+        System.out.println("绘制三角形");
+    }
+}
+```
 
 
 

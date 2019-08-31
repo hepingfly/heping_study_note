@@ -1114,11 +1114,201 @@ class MyCache {
 }
 ```
 
+#### 5、闭锁
+
+> - 让一些线程阻塞直到另一些线程完成一系列操作后才被唤醒
+> - CountDownLatch 主要有两个方法，当一个或多个线程调用 await 方法时，调用线程会被阻塞。其他线程调用 countDown 方法会将计数器减 1（调用 countDown 方法的线程不会阻塞），当计数器的值变为 0 时，因调用 await 方法被阻塞的线程会被唤醒，继续执行
+
+**枚举类：**
+
+```java
+/**
+ * 定义一个枚举类
+ */
+public enum CountryEnum {
+    ONE(1,"齐"),TWO(2,"楚"),THREE(3,"燕"),FOUR(4,"韩"),FIVE(5,"赵"),SIX(6,"魏");
+
+    private int countryId;
+    private String countryName;
 
 
+    private CountryEnum(int countryId, String countryName) {
+        this.countryId = countryId;
+        this.countryName = countryName;
+    }
+    // 循环遍历枚举类
+    public static CountryEnum loopCountryEnum(int countryId) {
+        CountryEnum[] array = CountryEnum.values();   // 这里返回所有枚举类的数组
+        for (CountryEnum countryEnum : array) {
+            if (countryId == countryEnum.countryId) {
+                return countryEnum;
+            }
+        }
+        return null;
+    }
+
+    public int getCountryId() {
+        return countryId;
+    }
+
+    public String getCountryName() {
+        return countryName;
+    }
+}
+```
+
+**闭锁案例代码**
+
+```java
+/**
+ * CountDownLatch 闭锁
+ */
+public class CountDownLatchDemo {
+    public static final int COUNT = 6;
+    public static void main(String[] args) {
+//        method1();
+        method2();
+    }
+
+    public static void method2() {
+        CountDownLatch latch = new CountDownLatch(6);
+        for (int i = 1; i <= 6; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println(Thread.currentThread().getName() + "国被灭");
+                    latch.countDown();
+                }
+                /**
+                 * 这里我想要根据 i 值的不同，判断是哪个国家，一种方式就是写 if else
+                 * 但是写 if else 会显得代码非常臃肿，这里的 i 只有 6 种情况，如果 i 非常多
+                 * if else 写起来就会很不优雅，这里通过枚举解决
+                 * 根据传入 i 值的不同，得到不同的国家名字
+                 */
+            },CountryEnum.loopCountryEnum(i).getCountryName()).start();
+        }
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println(Thread.currentThread().getName() + "秦一统中国");
+
+    }
 
 
+    public static void method1() {
+        CountDownLatch latch = new CountDownLatch(6);
+        /**
+         * 假设我用一个线程代表一个人，那么我希望等所有人都离开教室，然后主线程执行，人都走完，锁门
+         * 也就是等 6 个线程执行完之后，我主线程才执行
+         */
+        for (int i = 1; i <= 6; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println("上完自习，离开教室");
+                    latch.countDown();  // 让计数器减一
+                }
+            }).start();
+        }
+        try {
+            latch.await();  // 主线程进行等待，等计数器减到 0 之后，主线程才执行
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println(Thread.currentThread().getName() + "人都走完，锁门");
+    }
+}
+```
 
+#### 6、CyclicBarrier（栅栏）
+
+> `CyclicBarrier` 的字面意思是可循环（Cyclic）使用的屏障（Barrier）。它要做的事情是，让一组线程到达一个屏障（也可以叫同步点）时被阻塞，直到最后一个线程到达屏障时，屏障才会开门，所有被屏障拦截的线程才会继续干活，线程进入屏障通过 CyclicBarrier 的 await() 方法
+
+栅栏类似于闭锁，它能阻塞一组线程直到某个事件的发生。栅栏与闭锁的关键区别在于，所有的线程必须同时到达栅栏位置，才能继续执行。闭锁用于等待事件，而栅栏用于等待其他线程。
+
+`CyclicBarrier` 可以使一定数量的线程反复的在栅栏位置处汇集。当线程到达栅栏位置时将调用 `await` 方法，这个方法将阻塞直到所有线程都到达栅栏位置。如果所有线程都到达栅栏位置，那么栅栏将打开，此时所有线程都将被释放，而栅栏将被重置以便下次使用。
+
+**注：**
+
+`可以理解成栅栏是做加法，闭锁是做减法`
+
+```java
+/**
+ * CyclicBarrier（栅栏）
+ */
+public class CyclicBarrierDemo {
+    /**
+     * 这里我想做的操作就是把 7 颗龙珠都集齐，然后召唤神龙
+     * 前提就是 7 颗龙珠一颗一颗集齐，然后才执行召唤神龙
+     *
+     * 栅栏就类似于开会，有人先到，有人后到，先到的等后到的，等所有人都到了，再进行开会
+     */
+    public static void main(String[] args) {
+        CyclicBarrier barrier = new CyclicBarrier(7, new Runnable() {
+            @Override
+            public void run() {
+                System.out.println("召唤神龙");
+            }
+        });
+        for (int i = 1; i <= 7; i++) {
+            final int tempI = i;
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    System.out.println("收集第" + tempI + "个龙珠");
+                    try {
+                        barrier.await();  // 线程到达屏障之后别阻塞
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            }).start();
+        }
+    }
+}
+```
+
+#### 7、Semaphore（信号量）
+
+> 信号量主要用于两个目的，一个是用于多个共享资源的互斥使用，另一个用于并发线程数的控制。
+>
+> 就是多个线程去抢多个资源
+
+```java
+/**
+ * Semaphore 信号量
+ * 现在想模拟这样一种场景：
+ * 我现在有 3 个车位，但是有 6 部车。也就意味着只有 3 辆车能抢到车位，其它 3 辆等着
+ * 等一辆车离开了，剩下的车再继续抢
+ *
+ * 对应代码就是 6 个线程抢 3 个资源
+ */
+public class SemaphoreDemo {
+    public static void main(String[] args) {
+        Semaphore semaphore = new Semaphore(3);  // 现在模拟有 3 个停车位
+        for (int i = 1; i <= 6; i++) {  // 模拟有 6 部车
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        semaphore.acquire();  // 表示一个线程抢到一个停车位，即抢到一个资源
+                        System.out.println(Thread.currentThread().getName() + "抢到车位");
+                        // 暂停一会线程
+                        Thread.sleep(3000);  // 抢到资源的车，停 3 秒钟后离开，即释放资源
+                        System.out.println(Thread.currentThread().getName() + "离开车位");
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } finally {
+                        semaphore.release();  // 线程执行完之后，释放资源，把停车位空出来
+                    }
+                }
+            },String.valueOf(i)).start();
+        }
+    }
+}
+```
 
 
 

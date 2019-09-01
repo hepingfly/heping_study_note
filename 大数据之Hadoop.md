@@ -2909,21 +2909,144 @@ public class KVTextDriver {
     }
 ```
 
+##### 5、NLineInputFormat
 
+如果使用 NLineInputFormat，代表每个 map 进程处理的切片不再按 Block 块去划分，而是按 NLineInputFormat 指定的行数 N 来划分。即**输入文件的总行数/N = 切片数**，如果不整除，切片数=商+1
 
+**示例：**
 
+```java
+hello hi
+hello shp
+heping heping
+shp
 
+如果 N 是 2，则每个输入分片包含两行。开启 2 个 MapTask
+(0,hello hi)
+(10,hello shp)
+另一个 mapper 则收到后两行
+(21,heping heping)
+(36,shp)
+ 
+这里的键和值与 TextInputFormat 生成的一样
+```
 
+**mapper**
 
+```java
+public class NLineMapper extends Mapper<LongWritable, Text,Text,IntWritable> {
+    Text k = new Text();
+    IntWritable v = new IntWritable(1);
+    @Override
+    protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+        // hello hi
+        // 1.获取一行
+        String line = value.toString();
+        // 2. 切割
+        String[] words = line.split(" ");
+        for (String word : words) {
+            k.set(word);
+            context.write(k,v);
+        }
 
+    }
+}
+```
 
+**reducer**
 
+```java
+public class NLineReducer extends Reducer<Text,IntWritable,Text,IntWritable> {
+    IntWritable v = new IntWritable();
+    @Override
+    protected void reduce(Text key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+        // 1.累计求和
+        int sum = 0;
+        for (IntWritable value : values) {
+            sum += value.get();
+        }
+        v.set(sum);
+        // 2. 写出
+        context.write(key,v);
+    }
+}
+```
 
+**Driver**
 
+```java
+public class NLineDriver {
+    public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+        args = new String[]{"/Users/shenheping/Desktop/mr","/Users/shenheping/Desktop/output"};
+        Configuration configuration = new Configuration();
+        // 1. 获取 job 对象
+        Job job = Job.getInstance(configuration);
+        // 2.设置输出的 jar 路径
+        job.setJarByClass(NLineDriver.class);
+        // 3.关联 Mapper 和 Reducer
+        job.setMapperClass(NLineMapper.class);
+        job.setReducerClass(NLineReducer.class);
+        // 4.设置 Mapper 输出的 kv 类型
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(IntWritable.class);
+        // 5.设置最终输出的 kv 类型
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+        // 6.设置输入输出数据路径
+        FileInputFormat.setInputPaths(job,new Path(args[0]));
+        FileOutputFormat.setOutputPath(job,new Path(args[1]));
+        // 7. 设置每个切片 InputSplit 中划分三条记录（三行一个切片）
+        NLineInputFormat.setNumLinesPerSplit(job, 3);
+        // 8. 使用 NLineInputFormat 处理记录数
+        job.setInputFormatClass(NLineInputFormat.class);
+        // 7.提交 job
+        job.waitForCompletion(true);
+    }
+}
+```
 
+##### 6、自定义 InputFormat
 
+在企业开发中，Hadoop 框架自带的 InputFormat 类型不能满足所有应用场景，需要自定义 InputFormat 来解决实际问题。
 
+自定义 InputFormat 步骤：
 
+> 1、自定义一个类继承 `FileInputFormat`
+>
+> 2、改写 `RecordReader` ，实现一次读取一个完整文件封装为 KV
+>
+> 3、在输出时使用 `SequenceFileOutPutFormat` 输出合并文件
+
+**案例：**
+
+无论 HDFS 还是 MapReduce ，在处理小文件时效率都非常低，但又难免面临处理小文件的场景。此时，就需要有相应的解决方案。可以自定义 InputFormat 实现小文件的合并。
+
+**需求：**
+
+将多个小文件合并成一个 SequenceFile 文件（SequenceFile 文件是 Hadoop 用来存储二进制形式的 key-value 对的文件格式），SequenceFile 里面存储着多个文件，存储的形式为文件路径 + 名称  为 key，文件内容为 value
+
+**案例分析：**
+
+> 1. 自定义一个类继承 `FileInputFormat`
+>
+>    1. 重新 isSplitable() 方法，返回 false 不可切割
+>    2. 重写 createRecordReader() ，创建自定义的 RecordReader 对象，并初始化
+>
+> 2. 改写 RecordReader ，实现一次读取一个完整文件封装为 KV
+>
+>    1. 采用 IO 流一次读取一个文件输出到 value 中，因为设置了不可切片，最终把所有文件都封装到了 value 中
+>    2. 获取文件路径信息 + 名称，并设置 key
+>
+> 3. 设置 Driver
+>
+>    - ```java
+>      //1.设置输入的 InputFormat
+>      job.setInputFormatClass(WholeFileFormat.class);  // 这里是你自定义的 inputFormat
+>      //2.设置输出的 outputFormat
+>      job.setOutputFormatClass(SequenceFileOutputFormat.class) 
+>      ```
+>
+> 
 
 
 

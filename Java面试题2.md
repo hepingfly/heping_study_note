@@ -148,7 +148,9 @@ public class VolatileDemo {
 
 **解释一下 volatile 为什么保证不了原子性：**
 
-![volatile不保证原子性](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/volatile%E4%B8%8D%E4%BF%9D%E8%AF%81%E5%8E%9F%E5%AD%90%E6%80%A7.png?q-sign-algorithm=sha1&q-ak=AKIDT71QAX7DHcSzj9gixOYuYMS1dFFuP4J5&q-sign-time=1563089598;1563093198&q-key-time=1563089598;1563093198&q-header-list=&q-url-param-list=&q-signature=b320de7d1037d0c9e55baa75d2d8bb2c88482e00&x-cos-security-token=a54f8e50f0daad8049fd2ac40e1e339d1111fc9b10001)
+![volatile不保证原子性](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/volatile%E4%B8%8D%E4%BF%9D%E8%AF%81%E5%8E%9F%E5%AD%90%E6%80%A7.png)
+
+
 
 #### 3、volatile 不保证原子性问题解决
 
@@ -1309,6 +1311,158 @@ public class SemaphoreDemo {
     }
 }
 ```
+
+### 四、阻塞队列
+
+#### 1、阻塞队列接口和实现类
+
+![阻塞队列](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E9%98%BB%E5%A1%9E%E9%98%9F%E5%88%97.png)
+
+> - 当试图从空的阻塞队列中获取元素的线程将会被阻塞，直到其他线程往空的队列中插入新的元素
+> - 同样试图往已满的阻塞队列中添加新元素的线程同样也会被阻塞，直到其他的线程从队列中移除一个或者多个元素或者完全清空队列后使队列重新变得空闲起来
+
+**为什么用阻塞队列：**
+
+> 在多线程领域：所谓阻塞，在某些情况下，会挂起线程（即阻塞），一旦条件满足，被挂起的线程又会被自动唤醒。
+>
+> 为什么需要 BlockingQueue？
+>
+> 好处是我们不需要关心什么时候需要阻塞线程，什么时候需要唤醒线程。因为这一切 BlockingQueue 全都给你包办了。在 concurrent 包发布以前，在多线程环境下，我们每个程序员都必须自己去控制这些细节，尤其还要兼顾效率和线程安全，而这会给我们的程序带来不小的复杂度。
+
+`BlockingQueue` 是一个接口，它的父接口是 `Queue`，`Queue` 的父接口是 `Collection`。`BlockingQueue` 和 `list` 属于平级的关系
+
+`BlockingQueue` 的实现类：
+
+> - **ArrayBlockingQueue**：由数组结构组成的有界阻塞队列
+> - **LinkedBlockingQueue**：由链表结构组成的有界（大小默认值为 `Integer.MAX_VALUE`）阻塞队列
+> - **SynchronousQueue**：不存储元素的阻塞队列，也即单个元素的队列
+> - PriorityBlockingQueue：支持优先级排序的无界阻塞队列
+> - DelayQueue：使用优先级队列实现的延迟无界阻塞队列
+> - LinkedTransferQueue：由链表结构组成的无界阻塞队列
+> - LinkedBlockingDeque：由链表结构组成的双向阻塞队列
+
+#### 2、BlockingQueue 的核心方法
+
+| 方法类型 | 抛出异常  | 特殊值   | 阻塞   | 超时               |
+| -------- | --------- | -------- | ------ | ------------------ |
+| 插入     | add(e)    | offer(e) | put(e) | offer(e,time,unit) |
+| 移除     | remove()  | poll     | take() | poll(time,unit)    |
+| 检查     | element() | peek()   | 不可用 | 不可用             |
+
+|          |                                                              |
+| -------- | ------------------------------------------------------------ |
+| 抛出异常 | 当阻塞队列满时，再往队列里 add 插入元素会抛 `IllegalStateException: Queue full`<br />当阻塞队列为空时，再往队列里 remove 移除元素会抛 `NoSuchElementException` |
+| 特殊值   | 插入方法，成功 true，失败 false<br />移除方法，成功返回出队列的元素，队列里面没有就返回 null |
+| 阻塞     | 当阻塞队列满时，生产者线程继续往队列里 put 元素，队列会一直阻塞生产者线程直到 take 数据或者响应中断退出。<br />当阻塞队列为空时，消费者线程试图从队列里 take 元素，队列会一直阻塞消费者线程直到队列可用 |
+| 超时退出 | 当阻塞队列满时，队列会阻塞生产者线程一定时间，超过限定时间后，生产者线程会退出 |
+
+#### 3、阻塞队列 api 之抛出异常
+
+```java
+/**
+ * 抛出异常
+ */
+public class BlockingQueueDemo {
+    public static void main(String[] args) {
+//        List list = new ArrayList();  默认大小是 10
+        // 有界阻塞队列，需要你指定大小
+        BlockingQueue<String> blockingQueue = new ArrayBlockingQueue<String>(3);
+        System.out.println(blockingQueue.add("a"));
+        System.out.println(blockingQueue.add("b"));
+        System.out.println(blockingQueue.add("c"));
+        // 队列大小是 3，如果你再往里面加第 4 个，就会报 IllegalStateException: Queue full
+//        System.out.println(blockingQueue.add("d"));
+
+        System.out.println(blockingQueue.remove());  // a
+        System.out.println(blockingQueue.remove());  // b
+        System.out.println(blockingQueue.remove());  // c
+        // 当阻塞队列为空时，再移除就会报 NoSuchElementException
+//        System.out.println(blockingQueue.remove());
+    }
+}
+```
+
+#### 4、阻塞队列之返回布尔值
+
+```java
+/**
+ * 插入，移除方法
+ */
+public class BlockingQueueDemo {
+    public static void main(String[] args) {
+//        List list = new ArrayList();  默认大小是 10
+        // 有界阻塞队列，需要你指定大小
+        BlockingQueue<String> blockingQueue = new ArrayBlockingQueue<String>(3);
+        // 插入方法
+        System.out.println(blockingQueue.offer("a"));
+        System.out.println(blockingQueue.offer("b"));
+        System.out.println(blockingQueue.offer("c"));
+        // 使用 offer 方法进行插入，当超过队列长度时，返回 false
+        System.out.println(blockingQueue.offer("d"));
+
+        System.out.println(blockingQueue.peek());  // a  探测队列队首的元素是哪个
+        // 移除方法，移除成功，返回队列中的元素
+        System.out.println(blockingQueue.poll());
+        System.out.println(blockingQueue.poll());
+        System.out.println(blockingQueue.poll());
+        // 移除失败，返回 null
+        System.out.println(blockingQueue.poll());
+    }
+}
+```
+
+#### 5、阻塞队列之阻塞和超时控制
+
+**阻塞：**
+
+```java
+/**
+ * put  take 方法
+ */
+public class BlockingQueueDemo {
+    public static void main(String[] args) throws InterruptedException {
+//        List list = new ArrayList();  默认大小是 10
+        // 有界阻塞队列，需要你指定大小
+        BlockingQueue<String> blockingQueue = new ArrayBlockingQueue<String>(3);
+        blockingQueue.put("a");
+        blockingQueue.put("b");
+        blockingQueue.put("c");
+        // 当阻塞队列满了的时候,队列会阻塞生产者线程往里面 put 元素
+//        blockingQueue.put("d");
+        System.out.println("==========");
+        blockingQueue.take();
+        blockingQueue.take();
+        blockingQueue.take();
+        // 当阻塞队列为空时，队列会阻塞消费者线程从里面 take 元素
+//        blockingQueue.take();
+    }
+}
+```
+
+**超时**
+
+```java
+public class BlockingQueueDemo {
+    public static void main(String[] args) throws InterruptedException {
+//        List list = new ArrayList();  默认大小是 10
+        // 有界阻塞队列，需要你指定大小
+        BlockingQueue<String> blockingQueue = new ArrayBlockingQueue<String>(3);
+        System.out.println(blockingQueue.offer("a", 2L, TimeUnit.SECONDS));
+        System.out.println(blockingQueue.offer("b", 2L, TimeUnit.SECONDS));
+        System.out.println(blockingQueue.offer("c", 2L, TimeUnit.SECONDS));
+        // 当阻塞队列满时，使用 offer 方法往队列里面插入，超过限定时间，生产者线程会自动退出
+        System.out.println(blockingQueue.offer("d", 2L, TimeUnit.SECONDS));
+    }
+}
+```
+
+
+
+
+
+
+
+
 
 
 

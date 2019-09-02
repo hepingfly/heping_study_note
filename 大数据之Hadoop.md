@@ -3029,7 +3029,7 @@ public class NLineDriver {
 
 > 1. 自定义一个类继承 `FileInputFormat`
 >
->    1. 重新 isSplitable() 方法，返回 false 不可切割
+>    1. 重写 isSplitable() 方法，返回 false 不可切割
 >    2. 重写 createRecordReader() ，创建自定义的 RecordReader 对象，并初始化
 >
 > 2. 改写 RecordReader ，实现一次读取一个完整文件封装为 KV
@@ -3047,6 +3047,165 @@ public class NLineDriver {
 >      ```
 >
 > 
+
+自定义的 InputFormat
+
+```java
+/**
+ * 自定义 InputFormat
+ * 需要继承 FileInputFormat
+ * 文件路径 + 名称为 key，因此对应 Text 类型
+ * 整个文件作为 value，因此对应 BytesWritable 类型
+ */
+public class WholeFileInputFormat extends FileInputFormat<Text,BytesWritable> {
+    @Override
+    public RecordReader<Text, BytesWritable> createRecordReader(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
+        WholeRecoderReader recoderReader = new WholeRecoderReader();
+        recoderReader.initialize(inputSplit,taskAttemptContext);
+        return recoderReader;
+    }
+}
+```
+
+RecordReader：
+
+```java
+/**
+ * 这里继承的 RecordReader 的 kv 和你自定义的 InputFormat kv 相同
+ */
+public class WholeRecoderReader extends RecordReader<Text,BytesWritable> {
+
+    Text k = new Text();
+    BytesWritable v = new BytesWritable();
+    boolean isProgress = true;
+    /**
+     * 初始化方法
+     */
+    FileSplit split;
+    Configuration configuration;
+    @Override
+    public void initialize(InputSplit inputSplit, TaskAttemptContext taskAttemptContext) throws IOException, InterruptedException {
+        // 把 inputSplit 转成 FileSplit，因为我们读的就是文件
+        this.split = (FileSplit) inputSplit;
+        // 获取上下文的配置信息
+        configuration = taskAttemptContext.getConfiguration();
+    }
+
+    /**
+     * 核心业务逻辑处理方法
+     */
+    @Override
+    public boolean nextKeyValue() throws IOException, InterruptedException {
+        if (isProgress) {
+            //1.获取 fileSystem 对象
+            Path path = split.getPath();
+            FileSystem fileSystem = path.getFileSystem(configuration);
+            // 2.获取输入流
+            FSDataInputStream inputStream = fileSystem.open(path); // 获取到输入流后，我需要把输入流写到 BytesWritable 中
+            byte[] b = new byte[(int) split.getLength()];
+            /*
+             * 3.将输入流拷贝到字节数组中
+             * 第一个参数：输入流
+             * 第二个参数：拷贝到哪个字节数组里面
+             * 第三个参数：从哪个位置开始拷贝
+             * 第四个参数：拷贝的长度
+             */
+            IOUtils.readFully(inputStream,b,0,b.length);
+            // 4.封装 BytesWritable
+            v.set(b,0,b.length);  // 我们的目的就是把切片的信息读到 BytesWritable 里面去
+            // 5.封装 key
+            k.set(path.toString());
+            // 6.关闭资源
+            IOUtils.closeStream(inputStream);
+            isProgress = false;
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public Text getCurrentKey() throws IOException, InterruptedException {
+        return k;
+    }
+
+    @Override
+    public BytesWritable getCurrentValue() throws IOException, InterruptedException {
+        return v;
+    }
+
+    /**
+     * 获取当前处理的进度
+     */
+    @Override
+    public float getProgress() throws IOException, InterruptedException {
+        return 0;
+    }
+
+    @Override
+    public void close() throws IOException {
+
+    }
+}
+```
+
+mapper
+
+```java
+public class SequenceFileMapper extends Mapper<Text,BytesWritable,Text,BytesWritable> {
+
+    @Override
+    protected void map(Text key, BytesWritable value, Context context) throws IOException, InterruptedException {
+        context.write(key,value);
+    }
+}
+```
+
+reducer
+
+```java
+public class SequenceFileReducer extends Reducer<Text,BytesWritable,Text,BytesWritable> {
+    @Override
+    protected void reduce(Text key, Iterable<BytesWritable> values, Context context) throws IOException, InterruptedException {
+        // 循环写出
+        for (BytesWritable value : values) {
+            context.write(key,value);
+        }
+    }
+}
+```
+
+driver
+
+```java
+public class SequenceFileDriver {
+    public static void main(String[] args) throws IOException, ClassNotFoundException, InterruptedException {
+        args = new String[]{"/Users/shenheping/Desktop/mr","/Users/shenheping/Desktop/output"};
+        // 1.获取 job 对象
+        Configuration configuration = new Configuration();
+        Job job = Job.getInstance(configuration);
+        // 2.设置 jar 包存储的位置
+        job.setJarByClass(SequenceFileDriver.class);
+        // 3.关联 mapper 和 reducer
+        job.setMapperClass(SequenceFileMapper.class);
+        job.setReducerClass(SequenceFileReducer.class);
+        // 4.设置 mapper 的 key vaule 类型
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(BytesWritable.class);
+        // 5.设置最终输出的 key value 类型
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(BytesWritable.class);
+        // 6.设置输入输出路径
+        FileInputFormat.setInputPaths(job,new Path(args[0]));
+        FileOutputFormat.setOutputPath(job,new Path(args[1]));
+        // 7.设置输入的 inputFormat
+        job.setInputFormatClass(WholeFileInputFormat.class);
+        // 8.设置输出的 outputFormat
+        job.setOutputFormatClass(SequenceFileOutputFormat.class);
+        // 9.提交 job
+        job.waitForCompletion(true);
+    }
+}
+```
 
 
 

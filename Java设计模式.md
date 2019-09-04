@@ -376,9 +376,195 @@ class Triangle extends Shape {
 }
 ```
 
+### 迪米特法则
 
+**基本介绍**
 
+> - 一个对象应该对其他对象保持最少的了解
+> - 类与类关系越密切，耦合度越大
+> - 迪米特法则又叫最少知道原则，即一个类对自己依赖的类知道的越少越好。也就是说，对于被依赖的类不管多么复杂，都尽量将逻辑封装在类的内部
+> - 迪米特法则还有个更简单的定义：只与直接的朋友通信
+> - 直接的朋友：每个对象都会与其他的对象有耦合关系，只要两个对象之间有耦合关系，我们就说这两个对象之间是朋友关系。耦合的方式有很多，依赖，关联，组合，聚合等。其中，**我们称出现成员变量，方法参数，方法返回值中的类为直接的朋友**，而出现在局部变量中的类不是直接的朋友。也就是说，陌生的类最好不要以局部变量的方式出现在类的内部
 
+**注意事项：**
+
+> - 迪米特法则的核心是降低类之间的耦合
+> - 但是注意：由于每个类都减少了不必要的依赖，因此迪米特法则只是要求降低类间的耦合关系，并不是要求完全没有依赖关系
+
+**使用前：**
+
+```java
+public class Demeter1 {
+    public static void main(String[] args) {
+        SchoolManager schoolManager = new SchoolManager();
+        schoolManager.printAllEmployee(new CollegeManager());
+    }
+}
+
+// 学校总部员工类
+class Employee {
+    private String id;
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+}
+// 学院的员工
+class CollegeEmployee {
+    private String id;
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+}
+
+class CollegeManager {
+    // 返回学院总部员工
+    public List<CollegeEmployee> getAllCollegeEmployee() {
+        List<CollegeEmployee> list = new ArrayList<CollegeEmployee>();
+        for (int i = 0; i < 10; i++) {
+            CollegeEmployee employee = new CollegeEmployee();
+            employee.setId("员工id" + i);
+            list.add(employee);
+        }
+        return list;
+    }
+}
+
+/**
+ * SchoolManager 的直接朋友有：Employee   CollegeManager
+ * CollegeEmployee 不是直接朋友，而是一个陌生类，违背了迪米特法则
+ */
+class SchoolManager {
+    // 返回学校总部员工
+    public List<Employee> getAllCollegeEmployee() {
+        List<Employee> list = new ArrayList<Employee>();
+        for (int i = 0; i < 5; i++) {
+            Employee employee = new Employee();
+            employee.setId("员工id" + i);
+            list.add(employee);
+        }
+        return list;
+    }
+
+    public void printAllEmployee(CollegeManager collegeManager) {
+        /*
+           这里的 CollegeEmployee 不是 SchoolManager 的直接朋友
+           而是以局部变量的方式，出现在 SchoolManager 中
+           这样就违反了迪米特法则
+         */
+        List<CollegeEmployee> list1 = collegeManager.getAllCollegeEmployee();
+        System.out.println("---------学院员工-------");
+        for (CollegeEmployee ce : list1) {
+            System.out.println(ce.getId());
+        }
+
+        System.out.println("---------学校员工-------");
+        List<Employee> list2 = this.getAllCollegeEmployee();
+        for (Employee emp :list2) {
+            System.out.println(emp.getId());
+        }
+
+    }
+}
+```
+
+**使用后**
+
+```java
+public class Demeter1 {
+    public static void main(String[] args) {
+        SchoolManager schoolManager = new SchoolManager();
+        schoolManager.printAllEmployee(new CollegeManager());
+    }
+}
+
+// 学校总部员工类
+class Employee {
+    private String id;
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+}
+
+// 学院的员工
+class CollegeEmployee {
+    private String id;
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
+}
+
+class CollegeManager {
+    // 返回学院总部员工
+    public List<CollegeEmployee> getAllCollegeEmployee() {
+        List<CollegeEmployee> list = new ArrayList<CollegeEmployee>();
+        for (int i = 0; i < 10; i++) {
+            CollegeEmployee employee = new CollegeEmployee();
+            employee.setId("员工id" + i);
+            list.add(employee);
+        }
+        return list;
+    }
+
+    // 输出学院员工的信息
+    public void printCollegeEmployee() {
+        List<CollegeEmployee> employees = getAllCollegeEmployee();
+        System.out.println("------------学院员工信息------------");
+        for (CollegeEmployee emp : employees) {
+            System.out.println(emp.getId());
+        }
+    }
+}
+
+/**
+ * 改进后的 SchoolManager
+ */
+class SchoolManager {
+    // 返回学校总部员工
+    public List<Employee> getAllCollegeEmployee() {
+        List<Employee> list = new ArrayList<Employee>();
+        for (int i = 0; i < 5; i++) {
+            Employee employee = new Employee();
+            employee.setId("员工id" + i);
+            list.add(employee);
+        }
+        return list;
+    }
+
+    public void printAllEmployee(CollegeManager collegeManager) {
+        /*
+           将方法直接写到 collegeManager 里面去，降低耦合
+         */
+        collegeManager.printCollegeEmployee();
+
+        System.out.println("---------学校员工-------");
+        List<Employee> list2 = this.getAllCollegeEmployee();
+        for (Employee emp :list2) {
+            System.out.println(emp.getId());
+        }
+
+    }
+}
+```
 
 
 

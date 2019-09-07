@@ -1456,6 +1456,302 @@ public class BlockingQueueDemo {
 }
 ```
 
+#### 6、阻塞队列之同步队列 SynchronousQueue
+
+> - SynchronousQueue 没有容量
+> - 与其他 BlockingQueue 不同，SynchronousQueue 是一个不存储元素的 BlockingQueue
+> - 每一个 put 操作必须要等待一个 take 操作，否则不能继续添加元素，反之亦然。
+
+```java
+/**
+ * 同步队列
+ */
+public class SynchroniousQueueDemo {
+    public static void main(String[] args) {
+        BlockingQueue<String> queue = new SynchronousQueue<String>();
+
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    // 我往同步队列中 put 一个元素后,除非有另一个线程把这个元素 take 了，否则，put 不进去第二个
+                    System.out.println(Thread.currentThread().getName() + "放入 1");
+                    queue.put("1");
+                    System.out.println(Thread.currentThread().getName() + "放入 2");
+                    queue.put("2");
+                    System.out.println(Thread.currentThread().getName() + "放入 3");
+                    queue.put("3");
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        },"A线程").start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                try {
+                    // 把 put 进队列的元素取走
+                    String takeResult1 = queue.take();
+                    System.out.println(Thread.currentThread().getName() + "从队列中取出" + takeResult1);
+                    String takeResult2 = queue.take();
+                    System.out.println(Thread.currentThread().getName() + "从队列中取出" + takeResult2);
+                    String takeResult3 = queue.take();
+                    System.out.println(Thread.currentThread().getName() + "从队列中取出" + takeResult3);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        },"B线程").start();
+    }
+}
+```
+
+### 五、线程通信
+
+**注：**
+
+> 只要是多线程交互，判断的时候都进来使用 while 去判断，不要使用 if 去判断
+
+#### 1、线程通信之生产者消费者传统版
+
+```java
+package com.iflytek.java;
+
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+/**
+ * 一个初始值为 0 的变量，两个线程对其交替操作，一个加 1 一个减 1，来 5 轮
+ */
+public class ProdConsumer_TraditionDemo {
+
+    public static void main(String[] args) {
+        ShareData shareData = new ShareData();
+        for (int i = 1; i <= 5; i++) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        shareData.increment();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            },"A线程").start();
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        shareData.decrement();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            },"B线程").start();
+        }
+    }
+}
+
+// 资源类
+class ShareData {
+    private int number = 0;
+    private Lock lock = new ReentrantLock();
+    private Condition condition = lock.newCondition();
+    public void increment () throws InterruptedException {
+        try {
+            lock.lock(); // 加锁
+            while (number != 0) {   // 这里要用 while 不能用 if 防止虚假唤醒
+                // 等待，不能生产
+                condition.await();
+            }
+            number++;
+            System.out.println(Thread.currentThread().getName() + number);
+            condition.signalAll();  // 通知唤醒
+        }finally {
+            lock.unlock();  //释放锁
+        }
+    }
+    public void decrement () throws InterruptedException {
+        try {
+            lock.lock(); // 加锁
+            while (number == 0) {   // 这里要用 while 不能用 if 防止虚假唤醒
+                // 等待，不能消费
+                condition.await();
+            }
+            number--;
+            System.out.println(Thread.currentThread().getName() + number);
+            condition.signalAll();  // 通知唤醒
+        }finally {
+            lock.unlock();  //释放锁
+        }
+    }
+}
+
+```
+
+#### 2、synchronized 和 lock 有什么区别
+
+> - 原始构成
+>   - synchronized 是关键字，属于 JVM 层面
+>   - Lock 是具体类（java.util.concurrent.locks.lock），是 api 层面的锁
+> - 使用方法
+>   - synchronized 不需要用户去手动释放锁，当 synchronized 代码执行完成之后，系统会自动让线程释放对锁的占用
+>   - ReentrantLock 则需要用户去手动释放锁，若没有主动释放锁，就有可能导致出现死锁现象。因此需要 `lock()` 和 `unlock()` 方法配合 `try-finally` 语句块来完成
+> - 等待是否可中断
+>   - synchronized 不可中断，除非抛出异常或者正常运行完成
+>   - ReentrantLock 可中断，① 可以通过设置 `tryLock(long timeout, TimeUnit unit)`  ② `lockInterruptibly()` 放代码块中，调用 `interrupt()` 方法可中断
+> - 加锁是否公平
+>   - synchronized  非公平锁
+>   - ReentrantLock  两者都可以，默认非公平锁，构造方法可以传入 boolean 值，true 为公平锁，false 为非公平锁
+> - 锁绑定多个条件 Condition
+>   - synchronized 没有
+>   - ReentrantLock  用来实现分组唤醒需要唤醒的线程：可以精确唤醒，而不是像 synchronized 要么随机唤醒一个线程要么唤醒全部线程
+
+#### 3、绑定多个条件 Condition 
+
+```java
+package com.iflytek.java;
+
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+/**
+ * 多线程之间按顺序调用，实现 A->B->C 三个线程启动
+ * A 打印 5 次，B 打印 10 次，C 打印 15 次
+ * 紧接着 A 打印 5 次，B 打印 10 次，C 打印 15 次
+ * 来 10 轮
+ */
+public class SyncAndReenttrantLockDemo {
+    public static void main(String[] args) {
+        ShareResource resource = new ShareResource();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < 10; i++) {
+                    resource.print5();
+                }
+
+            }
+        },"A 线程").start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < 10; i++) {
+                    resource.print10();
+                }
+
+            }
+        },"B 线程").start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                for (int i = 0; i < 10; i++) {
+                    resource.print15();
+                }
+
+            }
+        },"C 线程").start();
+
+    }
+}
+
+class ShareResource {
+    // 弄个标志位 1 表示 A 线程，2 表示 B 线程，3 表示 C 线程
+    private int number = 1;
+    private Lock lock = new ReentrantLock();
+    private Condition condition1 = lock.newCondition();
+    private Condition condition2 = lock.newCondition();
+    private Condition condition3 = lock.newCondition();
+
+    public void print5() {
+        try {
+            lock.lock();  // 上锁
+            while (number != 1) {
+                try {
+                    condition1.await();  // 等待
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            for (int i = 1; i <= 5; i++) {
+                System.out.println(Thread.currentThread().getName() + i);
+            }
+            // 通知 B 线程
+            number = 2;
+            condition2.signal();
+        } finally {
+            lock.unlock();  // 释放锁
+        }
+    }
+    public void print10() {
+        try {
+            lock.lock();  // 上锁
+            while (number != 2) {
+                try {
+                    condition2.await();  // 等待
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            for (int i = 1; i <= 10; i++) {
+                System.out.println(Thread.currentThread().getName() + i);
+            }
+            // 通知 C 线程
+            number = 3;
+            condition3.signal();
+        } finally {
+            lock.unlock();  // 释放锁
+        }
+    }
+    public void print15() {
+        try {
+            lock.lock();  // 上锁
+            while (number != 3) {
+                try {
+                    condition3.await();  // 等待
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            for (int i = 1; i <= 15; i++) {
+                System.out.println(Thread.currentThread().getName() + i);
+            }
+            // 通知 A 线程
+            number = 1;
+            condition1.signal();
+            System.out.println("----------------------");
+        } finally {
+            lock.unlock();  // 释放锁
+        }
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

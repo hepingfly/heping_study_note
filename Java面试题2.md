@@ -1734,9 +1734,215 @@ class ShareResource {
 }
 ```
 
+#### 4、生产者消费者阻塞队列版
+
+```java
+/**
+ * 生产者消费者阻塞队列版
+ */
+public class ProdConsumer_BlockQueueDemo {
+    public static void main(String[] args) {
+        BlockingQueue<String> blockingQueue = new ArrayBlockingQueue<String>(5);
+        MyResource resource = new MyResource(blockingQueue);
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                resource.myProduct();
+            }
+        },"生产者线程").start();
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                resource.myConsumer();
+            }
+        },"消费者线程").start();
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("5 秒钟时间到，准备停止");
+        resource.stop();
 
 
+    }
+}
 
+class MyResource {
+    private volatile boolean FLAG = true; // 默认开启，进行生产和消费
+    private AtomicInteger atomicInteger = new AtomicInteger();
+
+    BlockingQueue<String> blockingQueue = null;
+
+    public MyResource(BlockingQueue<String> blockingQueue) {
+        this.blockingQueue = blockingQueue;
+        System.out.println(blockingQueue.getClass().getName());
+    }
+
+    public void myProduct() {
+        String data = null;
+        while (FLAG) {
+            data = atomicInteger.incrementAndGet() + "";
+            try {
+                boolean result = blockingQueue.offer(data, 5L, TimeUnit.SECONDS);
+                if (result) {
+                    System.out.println(Thread.currentThread().getName() + "插入队列成功");
+                } else {
+                    System.out.println(Thread.currentThread().getName() + "插入队列失败");
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        System.out.println("准备让 flag = false了，停止生产");
+    }
+
+    public void myConsumer() {
+        String result = null;
+        while (FLAG) {
+            try {
+                result = blockingQueue.poll(3L,TimeUnit.SECONDS);
+                if (result == null || result.equalsIgnoreCase("")) {
+                    FLAG = false;
+                    System.out.println("超过 2 秒钟没有可以消费的，消费退出");
+                    return;
+                }
+                System.out.println(Thread.currentThread().getName() + "消费者取出队列成功");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void stop() {
+        this.FLAG = false;
+    }
+}
+```
+
+### 六、线程池
+
+#### 1、线程池使用及优势
+
+线程池做的工作主要是控制运行的线程的数量，处理过程中将任务放入队列，然后在线程创建后启动这些任务，如果线程数量超过了最大数量，超出数量的线程排队等候，等其他线程执行完毕，再从队列中取出任务来执行。
+
+线程池主要特点：线程复用，控制最大并发数，管理线程
+
+> 1、降低资源消耗。通过重复利用已创建的线程降低线程创建和销毁造成的消耗
+>
+> 2、提高响应速度。当任务到达时，任务可以不需要等到线程创建就能立即执行
+>
+> 3、提高线程的可管理性。线程是稀缺资源，如果无限制的创建，不仅会消耗系统资源，还会降低系统的稳定性，使用线程池可以进行统一的分配，调优和监控
+
+#### 2、线程池 3 个常用方式
+
+Java 中的线程池是通过 Executor 框架实现的，该框架中用到了 Executor，Executors，ExecutorService，ThreadPoolExecutor 这几个类。
+
+**三种常用方式：**
+
+> - `Executors.newFixedThreadPool(5)`
+>
+>   - 适用于执行长期的任务，性能好很多
+>
+>   - ```java
+>     // 创建一个定长的线程池，可控制线程最大并发数，超出的线程会在队列中等待
+>     public static ExecutorService newFixedThreadPool(int nThreads) {
+>             return new ThreadPoolExecutor(nThreads, nThreads,
+>                                           0L, TimeUnit.MILLISECONDS,
+>                                           new LinkedBlockingQueue<Runnable>());
+>         }
+>     ```
+>
+>   - 创建一个**定长的线程池**，可控制线程最大并发数，超出的线程会在队列中等待
+>
+>   - `newFixedThreadPool` 创建的线程池 `corePoolSize` 和 `maximumPoolSize` 值是相等的，它使用 `LinkedBlockingQueue`
+>
+> - `Executors.newSingleThreadExecutor()`
+>
+>   - 适用于一个任务一个任务执行的场景
+>
+>   - ```java
+>     // 创建一个单线程化的线程池，它只会用唯一的工作线程来执行任务，保证所有任务按照指定顺序执行
+>     public static ExecutorService newSingleThreadExecutor() {
+>             return new FinalizableDelegatedExecutorService
+>                 (new ThreadPoolExecutor(1, 1,
+>                                         0L, TimeUnit.MILLISECONDS,
+>                                         new LinkedBlockingQueue<Runnable>()));
+>         }
+>     ```
+>
+>   - 创建一个单线程化的线程池，它只会用唯一的工作线程来执行任务，保证所有任务按照指定顺序执行
+>
+>   - `newSingleThreadExecutor` 创建的线程池 将 `corePoolSize` 和 `maximumPoolSize` 都设置为 1，它使用 `LinkedBlockingQueue`
+>
+> - `Executors.newCachedThreadPool()`
+>
+>   - 适用于执行很多短期异步的小程序或者负载较轻的服务器
+>
+>   - ```java
+>     public static ExecutorService newCachedThreadPool() {
+>             return new ThreadPoolExecutor(0, Integer.MAX_VALUE,
+>                                           60L, TimeUnit.SECONDS,
+>                                           new SynchronousQueue<Runnable>());
+>         }
+>     ```
+>
+>   - 创建一个**可缓存线程池**，如果线程池长度超过处理需要，可灵活回收空闲线程，若无可回收，则新建线程
+>
+>   - `newCachedThreadPool` 创建的线程池 将 `corePoolSize` 设置为 0， 将 `maximumPoolSize` 都设置为 `Integer.MAX_VALUE` ，使用的是 `SynchronousQueue` ，也就是说来了任务就创建线程运行，当线程空闲超过 60 秒，就销毁线程。
+
+```java
+package com.iflytek.java;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+/**
+ * Created by shenheping on 2019/9/8.
+ */
+public class MyThreadPoolDemo {
+    public static void main(String[] args) {
+        // 一个线程池里面有 5 个处理线程
+//        ExecutorService threadPool = Executors.newFixedThreadPool(5);
+
+        // 一个线程池里面有 1 个处理线程
+//        ExecutorService threadPool = Executors.newSingleThreadExecutor();
+
+        // 一个线程池里面有 N 个处理线程
+        ExecutorService threadPool = Executors.newCachedThreadPool();
+        // 模拟 10 个用户来办理业务，每个用户就是一个来自外部的请求线程
+        try {
+            for (int i = 1; i <= 10; i++) {
+                // 10 个用户的请求都由这一个线程池来处理，因为线程池里面有 5 个处理线程
+                threadPool.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        System.out.println(Thread.currentThread().getName() + " 办理业务");
+                    }
+                });
+            }
+
+        } catch (Exception e) {
+
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+}
+```
+
+#### 3、线程池七大参数
+
+```java
+    public ThreadPoolExecutor(int corePoolSize,
+                              int maximumPoolSize,
+                              long keepAliveTime,
+                              TimeUnit unit,
+                              BlockingQueue<Runnable> workQueue,
+                              ThreadFactory threadFactory,
+                              RejectedExecutionHandler handler) {
+    }
+```
 
 
 

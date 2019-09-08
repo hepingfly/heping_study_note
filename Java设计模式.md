@@ -1,6 +1,6 @@
 # Java设计模式
 
-### 设计模式介绍
+## 设计模式原则
 
 设计模式是对软件设计中普遍存在（反复出现）的各种问题，所提出的解决方案。
 
@@ -565,6 +565,186 @@ class SchoolManager {
     }
 }
 ```
+
+
+
+## 设计模式使用
+
+设计模式分为三种类型：
+
+> - 创建型模式
+>   - 单例模式、抽象工厂模式、原型模式、建造者模式、工厂模式
+> - 结构型模式
+>   - 适配器模式、桥接模式、装饰模式、组合模式、外观模式、享元模式、代理模式
+> - 行为型模式
+>   - 模板方法模式、命令模式、访问者模式、迭代器模式、观察这模式、中介者模式、备忘录模式、解释器模式、状态模式、策略模式、责任链模式
+
+#### 1、单例模式-饿汉式
+
+> 单例模式，就是采取一定的方法保证在整个软件系统中，对某个类只能存在一个对象实例，并且该类只提供一个取得其对象实例的方法
+
+单例模式有 8 种方式：
+
+> - 饿汉式（静态常量）
+> - 饿汉式（静态代码块）
+> - 懒汉式（线程不安全）
+> - 懒汉式（线程安全，同步方法）
+> - 懒汉式（线程安全，同步代码块）
+> - 双重检查
+> - 静态内部类
+> - 枚举
+
+```java
+/**
+ * 单例模式之饿汉式，静态变量
+ */
+public class SingletonTest01 {
+    public static void main(String[] args) {
+        Singleton instance1 = Singleton.getInstance();
+        Singleton instance2 = Singleton.getInstance();
+        System.out.println(instance1 == instance2);
+    }
+}
+
+class Singleton {
+    // 1、私有化构造器
+    private Singleton() {
+
+    }
+
+    // 2.在对象内部创建对象实例
+    private static final Singleton INSTANTCE = new Singleton();
+
+    // 3.提供一个公有的方法，返回对象实例
+    public static Singleton getInstance() {
+        return INSTANTCE;
+    }
+}
+```
+
+**优缺点说明：**
+
+> 优点：
+>
+> - 这种方式写法比较简单，就是在类加载的时候就完成了实例化。避免了线程同步问题。
+>
+> 缺点：
+>
+> - 在类加载的时候就完成实例化，没有达到懒加载的效果。如果从始至终从未用过这个实例，则会造成内存浪费
+
+**饿汉式静态代码块**
+
+```java
+/**
+ * 单例模式之饿汉式，静态代码块
+ */
+public class SingletonTest02 {
+    public static void main(String[] args) {
+        Singleton instance1 = Singleton.getInstance();
+        Singleton instance2 = Singleton.getInstance();
+        System.out.println(instance1 == instance2);
+    }
+}
+
+class Singleton {
+    // 1、私有化构造器
+    private Singleton() {
+    }
+    // 2.在对象内部创建对象实例
+    private static Singleton instance;
+
+    static {
+        // 在静态代码块中，实例化对象
+        instance = new Singleton();
+    }
+
+    // 3.提供一个公有的方法，返回对象实例
+    public static Singleton getInstance() {
+        return instance;
+    }
+}
+```
+
+#### 2、单例模式-懒汉式
+
+**懒汉式-线程不安全**
+
+```java
+/**
+ * 懒汉式-线程不安全
+ */
+public class SingletonTest03 {
+    public static void main(String[] args) {
+        Singleton instance1 = Singleton.getInstance();
+        Singleton instance2 = Singleton.getInstance();
+        System.out.println(instance1 == instance2);
+    }
+}
+class Singleton {
+    private static Singleton instance;
+    private Singleton() {
+
+    }
+
+    // 提供一个静态的公有方法，当使用到该方法时，才去创建 instance
+    public static Singleton getInstance() {
+        if (instance == null) {
+            instance = new Singleton();
+        }
+        return instance;
+    }
+}
+```
+
+**优缺点：**
+
+> - 起到了懒加载的效果，但是只能在单线程下使用
+> - 如果在多线程下，一个线程进入  `if (instance == null)` 语句块，还未来得及往下执行，另一个线程也通过了这个判断语句，这时便会产生多个实例。 
+
+**懒汉式-线程安全**
+
+```java
+/**
+ * 懒汉式-线程安全
+ */
+public class SingletonTest04 {
+    public static void main(String[] args) {
+        Singleton instance1 = Singleton.getInstance();
+        Singleton instance2 = Singleton.getInstance();
+        System.out.println(instance1 == instance2);
+    }
+}
+
+class Singleton {
+    private static Singleton instance;
+    private Singleton() {
+
+    }
+
+    // 使用 synchronized 解决线程安全问题
+    public static synchronized Singleton getInstance() {
+        if (instance == null) {
+            instance = new Singleton();
+        }
+        return instance;
+    }
+}
+```
+
+优缺点：
+
+> - 解决了线程不安全问题
+> - 效率太低了，一个线程必须等另一个线程执行完释放锁，才能继续执行
+
+
+
+
+
+
+
+
+
+
 
 
 

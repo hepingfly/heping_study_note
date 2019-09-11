@@ -736,6 +736,132 @@ class Singleton {
 > - 解决了线程不安全问题
 > - 效率太低了，一个线程必须等另一个线程执行完释放锁，才能继续执行
 
+#### 3、单例模式-双重检查
+
+```java
+/**
+ * 单例模式之双重检查
+ */
+public class SingletonTest06 {
+    public static void main(String[] args) {
+        Singleton instance1 = Singleton.getInstance();
+        Singleton instance2 = Singleton.getInstance();
+        System.out.println(instance1 == instance2);
+    }
+}
+
+class Singleton {
+    private static volatile Singleton instance = null;
+    private Singleton() {
+    }
+
+    public static Singleton getInstance() {
+        /**
+         * 假如说现在有两个线程都进入到 instance == null 这个条件里面
+         * 进去之后由于有 synchronized，那么只会有一个线程握住锁，握住锁以后
+         * 假设这时候 instance 为空，那么这个线程就会去创建实例，创建完实例后
+         * 线程执行结束，这个时候另一个线程握住锁，进来之后会再判断一次 instance 是否为空
+         * 显然这时候 instance 已经不为空了，则不创建实例
+         * 同时，如果下次在获取实例，在第一层判断就会被拦下，直接返回 instance，
+         * 避免了同步方法被多次执行
+         */
+        if (instance == null) {
+            synchronized (Singleton.class) {
+                if (instance == null) {
+                    instance = new Singleton();
+                }
+            }
+        }
+        return instance;
+    }
+}
+```
+
+**优缺点：**
+
+> - 双重检查是多线程开发中经常使用到的，在代码中我们对 instance 进行了两次为空检查，这样就可以保证线程安全了
+> - 这样实例化代码只用执行一次，后面再次访问时，判断 instance 是否为空，直接 return 实例化对象，也避免进行反复方法同步
+> - 这种方式在开发中推荐使用
+
+#### 4、单例模式-静态内部类
+
+```java
+package com.hepingfly.singleton.type7;
+
+/**
+ * 单例模式静态内部类
+ */
+public class SingletonTest07 {
+    public static void main(String[] args) {
+        Singleton instance1 = Singleton.getInstance();
+        Singleton instance2 = Singleton.getInstance();
+        System.out.println(instance1 == instance2);
+    }
+}
+class Singleton {
+    private Singleton() {
+
+    }
+    private static class SingletonInstance {
+        private static final Singleton INSTANCE = new Singleton();
+    }
+    public static Singleton getInstance() {
+        return SingletonInstance.INSTANCE;
+    }
+}
+
+```
+
+**优缺点：**
+
+> - 这种方式采用了类装载机制来保证初始化实例时只有一个线程
+> - 静态内部类方式在 Singleton 类被装载时并不会立即实例化，而是在需要实例化时，调用 getInstance 方法，才会装载 SingletonInstance 类，从而完成 Singleton 的实例化
+> - 类的静态属性只会在第一次加载类的时候初始化，所以在这里 JVM 帮助了我们保证线程的安全性，在类进行初始化时，别的线程是无法进入的
+> - 优点：避免了线程不安全，利用静态内部类特点实现延迟加载，效率高
+
+#### 5、单例模式-枚举
+
+```java
+/**
+ * 单例模式之枚举
+ */
+public class SingletonTest08 {
+    public static void main(String[] args) {
+        Singleton instance1 = Singleton.INSTANCE;
+        Singleton instance2 = Singleton.INSTANCE;
+        System.out.println(instance1 == instance2);
+    }
+}
+
+enum Singleton {
+    INSTANCE;
+}
+```
+
+#### 6、简单工厂模式
+
+**需求：**
+
+> 一个披萨的项目：要便于披萨种类的扩展，要便于维护
+>
+> - 披萨的种类很多（比如：GreekPizz、CheezePiza）
+> - 披萨的制作有  prepare   bake  cut   box
+> - 完成披萨店订购功能
+
+**基本介绍：**
+
+> - 简单工厂模式是属于创建型模式，是工厂模式的一种。**简单工厂模式是由一个工厂对象决定创建出哪一种产品类的实例。**简单工厂模式是工厂模式家族中最简单实用的模式
+> - 简单工厂模式：定义一个创建对象的类，由这个类来封装实例化对象的行为
+> - 在软件开发中，当我们会用到大量的创建某种、某类或者某批对象时，就会用到工厂模式。
+
+
+
+
+
+
+
+
+
 
 
 

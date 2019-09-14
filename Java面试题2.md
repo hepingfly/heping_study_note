@@ -1944,6 +1944,158 @@ public class MyThreadPoolDemo {
     }
 ```
 
+> - corePoolSize ：线程池中的常驻核心线程数
+>   - 在创建线程池后，当有请求任务来了之后，就会安排池中的线程去执行请求任务，近似理解为今日当值线程
+>   - 当线程池中的线程数目达到 corePoolSize 之后，就会把到达的任务放到缓存队列当中
+> - maximumPoolSize
+>   - 线程池能够容纳同时执行的最大线程数，此值必须大于等于1
+> - keepAliveTime
+>   - 多余的空闲线程的存活时间。当前线程池线程数量超过 corePoolSize 时，当空闲时间达到 keepAliveTime 时，多余空闲线程会被销毁直到只剩下 corePoolSize 个线程为止
+>   - 默认情况下，只有当线程池中的线程数大于 corePoolSize 时，keepAliveTime 才会起作用，直到线程池中的线程数不大于 corePoolSize
+> - unit
+>   - keepAliveTime 的单位
+> - workQueue
+>   - 任务队列，被提交但尚未被执行的任务
+> - threadFactory
+>   - 表示生成线程池中工作线程的线程工厂，用于创建线程，一般用默认的即可
+> - handler
+>   - 拒绝策略，表示当队列满了并且工作线程大于等于线程池的最大线程数（maximumPoolSize）时如何来拒绝请求执行的 runnable 的策略
+
+**总结一下：**
+
+一个线程池你可以把它理解成一个银行网点，corePoolSize 你可以把它理解成初始化银行几个窗口，maximumPoolSize 可以理解成这个银行网点最多可以开多少个窗口，keepAliveTime 你可以理解成，我初始化两个窗口，但是由于人太多了，所以又开了三个窗口，corePoolSize 是 2，后来随着业务量的下降，后面三个窗口就不需要了，所以等着三个窗口空闲达到一定时间后，就会被销毁。workQueue 可以理解成，线程池中的线程都在执行任务，没有空闲线程，这时候再来请求，就在阻塞队列中等待。handler 可以理解成，工作线程已经达到了线程池最大线程数，这时候来请求就放阻塞队列里，然后阻塞队列也已经满了，这时候就启动拒绝策略
+
+#### 4、线程池的工作原理
+
+> 1、在创建线程池后，等待提交过来的任务请求
+>
+> 2、当调用 execute() 方法添加一个任务请求时，线程池会做如下判断：
+>
+> 1）、如果正在运行的线程数量小于 corePoolSize ，那么马上创建线程运行这个任务
+>
+> 2）、如果正在运行的线程数量大于或等于 corePoolSize ，那么将这个任务放入阻塞队列
+>
+> 3）、如果这时候阻塞队列满了且正在运行的线程数量还小于 maximumPoolSize ，那么还是要创建非核心线程立刻运行这个任务
+>
+> 4）、如果队列满了且正在运行的线程数量大于或等于 maximumPoolSize，那么线程池会启动饱和拒绝策略来执行
+>
+> 3、当一个线程完成任务时，它会从阻塞队列中取下一个任务来执行
+>
+> 4、当一个线程无事可做超过一定的时间（keepAliveTime）时，线程池会判断：如果当前运行的线程数大于 corePoolSize，那么这个线程就会被停掉。所以线程池的所有任务完成后它最终会收缩到 corePoolSize 的大小。
+
+#### 5、线程池拒绝策略
+
+**拒绝策略是什么：**
+
+> 等待队列已经满了，塞不下新任务了，同时线程池中的 max 线程也达到了，无法继续为新任务服务。这时候我们就需要拒绝策略机制合理的处理这个问题
+
+**JDK 内置的拒绝策略：**
+
+> - AbortPolicy（默认）：直接抛出 `RejectedExecutionException` 异常，阻止系统正常运行
+> - CallerRunsPolicy ："调用者运行" 一种调节机制，该策略既不会抛弃任务，也不会抛出异常，而是将某些任务回退到调用者，从而降低新任务的流量
+> - DiscardOldestPolicy ：抛弃队列中等待最久的任务，然后把当前任务加入队列中尝试再次提交当前任务
+> -  DiscardPolicy ：直接丢弃任务，不予任何处理也不抛出异常。如果允许任务丢失，这是最好的一种方案。
+
+**面试题：**
+
+> 上面说了我们可以有三种方式去创建线程池
+>
+> ```java
+> // 一个线程池里面有 5 个处理线程
+> ExecutorService threadPool = Executors.newFixedThreadPool(5);
+>
+> // 一个线程池里面有 1 个处理线程
+> ExecutorService threadPool = Executors.newSingleThreadExecutor();
+>
+> // 一个线程池里面有 N 个处理线程
+> ExecutorService threadPool = Executors.newCachedThreadPool();
+> ```
+>
+> 那么在实际使用中用哪一个比较好？
+>
+> 答案是一个都不用，我们最好使用手写的线程池。
+>
+> 原因：
+>
+> 根据阿里巴巴 java 开发手册：
+>
+> ```
+> 线程池不允许使用Executors去创建，而是通过ThreadPoolExecutor的方式，这样的处理方式让写的同学更加明确线程池的运行规则，规避资源耗尽的风险。
+>
+> Executors返回的线程池对象的弊端如下：
+>
+> 1）FixedThreadPool和SingleThreadPool:
+>
+> 允许的请求队列长度为Integer.MAX_VALUE，可能会堆积大量的请求，从而导致OOM。
+>
+> 2）CachedThreadPool和ScheduledThreadPool:
+>
+> 允许的创建线程数量为Integer.MAX_VALUE，可能会创建大量的线程，从而导致OOM。
+> ```
+>
+> 看源码：
+>
+> ```java
+> public static ExecutorService newSingleThreadExecutor() {
+>         return new FinalizableDelegatedExecutorService
+>             (new ThreadPoolExecutor(1, 1,
+>                                     0L, TimeUnit.MILLISECONDS,
+>                                     new LinkedBlockingQueue<Runnable>()));
+>     
+>  // 使用的阻塞队列是 LinkedBlockingQueue，而 LinkedBlockingQueue 由链表结构组成的有界（大小默认值为 Integer.MAX_VALUE）阻塞队列，这样阻塞队列里面就能放无数个线程，从而导致 OOM
+> ```
+>
+> 
+
+#### 6、自定义线程池
+
+```java
+public static void main(String[] args) {
+        /**
+         * 这里我使用 ThreadPoolExecutor 创建了一个线程池
+         * 线程池里面有 2 个核心线程，最大线程数是 5，阻塞队列里面可以有 3 个线程等待
+         * 使用的拒绝策略是直接抛异常
+         *
+         * 所以我这个线程池，如果现在只来 2 个线程，那么线程池里面 2 个核心线程就可以处理，
+         * 如果这时候又来了 3 个线程，且 2 个核心线程任务还没处理完，这时候放在阻塞队列里面，
+         * 如果这时候又来了 3 个线程，且 2 个核心线程任务还没处理完，因为最大线程数是 5 ，所以
+         * 又会增加 3 个处理线程，此时如果再来请求，就会抛异常了
+         * 因此，线程池支持线程数 = 最大线程数 + 阻塞队列支持线程数
+         * 注：最大线程数包括核心线程数
+         */
+        ExecutorService threadPool = new ThreadPoolExecutor(2,5
+                ,2L, TimeUnit.SECONDS,new LinkedBlockingDeque<>(3),Executors.defaultThreadFactory()
+                ,new ThreadPoolExecutor.AbortPolicy());
+        try {
+            // 模拟 5 个用户来办业务，每个用户就是一个来自外部的请求线程
+            for (int i = 1; i <= 5; i++) {
+                threadPool.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        System.out.println(Thread.currentThread().getName() + " 办理业务");
+                    }
+                });
+            }
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

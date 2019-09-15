@@ -2082,6 +2082,107 @@ public static void main(String[] args) {
     }
 ```
 
+#### 7、死锁编码及定位分析
+
+死锁是什么？
+
+> 死锁是指两个或两个以上的进程在执行过程中，因争夺资源而造成的一种互相等待的现象，若无外力干涉那它们都将无法推进下去，如果系统资源充足，进程的资源请求都能够得到满足，死锁出现的可能性就很低，否则就会因争夺有限的资源而陷入死锁。
+
+```java
+/**
+ * 死锁是指两个或两个以上的进程在执行过程中，因争夺资源而造成的一种互相等待现象
+ */
+public class DemoLockDemo {
+    public static void main(String[] args) {
+        String lockA = "lockA";
+        String lockB = "lockB";
+        new Thread(new HoldDeadLock(lockA,lockB)).start();
+        new Thread(new HoldDeadLock(lockB,lockA)).start();
+    }
+}
+
+class HoldDeadLock implements Runnable {
+
+    private String lockA;
+    private String lockB;
+
+    public HoldDeadLock(String lockA, String lockB) {
+        this.lockA = lockA;
+        this.lockB = lockB;
+    }
+
+    @Override
+    public void run() {
+        synchronized (lockA) {
+            System.out.println(Thread.currentThread().getName() + "自己持有" + lockA + "尝试获得" + lockB);
+            // 暂停一会线程
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            synchronized (lockB) {
+                System.out.println(Thread.currentThread().getName() + "自己持有" + lockB + "尝试获得" + lockA);
+            }
+        }
+    }
+}
+```
+
+**死锁问题定位：**
+
+使用  jps 命令查到进程号，然后使用 jstack 命令根据进程号打印出堆栈信息
+
+### 七、JVM
+
+#### 1、GCRoots 的理解
+
+**什么是垃圾？**
+
+> 简单的说就是内存中已经不再被使用到的空间就是垃圾
+
+**要进行垃圾回收，如何判断一个对象是否可以被回收？**
+
+> - 引用计数法
+>   - Java 中引用和对象是由关联的。如果要操作对象，则必须用引用进行。因此，一个简单的办法就是通过引用计数来判断一个对象是否可以回收。简单说，给对象中添加一个引用计数器，每当有一个地方引用它，计数器值加 1，每当有一个引用失效时，计数器值减 1。任何时刻计数器值为零的对象就是不可能再被使用的，那么这个对象就是可回收对象。
+>   - 目前这种算法没有人使用了，因为解决不掉循环引用的问题，了解即可。而且每次对象赋值的时候，还要维护引用计数器，且计数器本身也有一定的消耗
+> - 枚举根节点做可达性分析（根搜索路径）
+>   - 为了解决引用计数法的循环引用问题，Java 使用了可达性分析的方法
+>   - 所谓 『GC roots』就是一组必须活跃的引用
+>   - **基本思路就是通过一系列名为 『GC roots』的对象作为起始点**，从这个被称为 『GC roots』的对象开始向下搜索，如果一个对象到 『GC roots』 没有任何引用链相连时，则说明这个对象不可用。也即给定一个集合的引用作为根出发，通过引用关系遍历对象图，能被遍历到的（可到达的）对象就被判定为存活，没有被遍历到的自然就被判定为死亡。
+
+![根节点可达性分析](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E6%A0%B9%E8%8A%82%E7%82%B9%E5%8F%AF%E8%BE%BE%E6%80%A7%E5%88%86%E6%9E%90.png)
+
+Java 中可以作为 GC Roots 的对象
+
+> - 虚拟机栈（栈帧中的局部变量区，也叫做局部变量表）中引用的对象
+> - 方法区中的类静态属性引用的对象
+> - 方法区中常量引用的对象
+> - 本地方法栈中 JNI（Native方法）引用的对象
+
+#### 2、JVM 的参数类型
+
+> - 标配参数
+>   - `-version`
+>   - `-help`
+>   - `-showversion`
+>   - 意思就是在 jdk 各个版本之间很稳定，很少有大的变化
+> - X 参数
+>   - `-Xint`  ：解释执行
+>   - `-Xcomp` ：第一次使用就编译成本地代码
+>   - `-Xmixed` ：混合模式
+> - XX 参数
+>   - Boolean 类型
+>   - KV 设值类型
+
+
+
+
+
+
+
+
+
 
 
 

@@ -876,11 +876,40 @@ enum Singleton {
 
 > 定义一个创建对象的抽象方法，由子类决定要实例化的类。工厂方法模式**将对象的实例化推迟到子类**
 
+代码见：
 
+<https://github.com/hepingfly/heping_DesignPattern/tree/master/src/com/hepingfly/principle/factory/factorymethod/pizzastore>
 
+#### 8、抽象工厂模式
 
+**基本介绍：**
 
+> - 抽象工厂模式：定义了一个 interface 用于创建相关或有依赖关系的对象簇，而无需指明具体的类
+> - 抽象工厂模式可以将简单工厂模式和工厂方法模式进行整合
+> - 从设计层面看，抽象工厂模式就是对简单工厂模式的改进（或者称为进一步的抽象）
+> - 将工厂抽象成两层，抽象工厂和具体实现的工厂子类。程序员可以根据创建对象类型使用对应的工厂子类。这样将单个的简单工厂变成了工厂簇，更利于代码的维护和扩展。
 
+代码见：
+
+`<https://github.com/hepingfly/heping_DesignPattern/tree/master/src/com/hepingfly/principle/factory/absfactory/pizzastore>`
+
+**工厂模式小结：**
+
+> 1、工厂模式的意义：
+>
+> 将实例化对象的代码提取出来，放到一个类中统一管理和维护，达到和主项目依赖关系的解耦
+>
+> 2、三种工厂模式：
+>
+> 简单工厂模式、工厂方法模式、抽象工厂模式
+>
+> 3、设计模式的依赖抽象原则
+>
+> ① 创建对象实例时，不要直接 new 而是把这个 new 的动作放到一个工厂方法中，并返回
+>
+> ② 不要让类继承具体类，而是继承抽象类或是实现接口
+>
+> ③ 不要覆盖基类中已经实现的方法
 
 
 

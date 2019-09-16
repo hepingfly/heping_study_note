@@ -1,5 +1,7 @@
 # ActiveMQ笔记
 
+### activeMQ 入门
+
 **为什么要引入 MQ？**
 
 > 系统之间直接调用存在的问题：
@@ -44,7 +46,17 @@
 > - 削峰
 > - 异步
 
+### ActiveMQ 安装和控制台
 
+**下载：**
+
+直接去 activeMQ 官网下载
+
+**activeMQ 启动：**
+
+> - 启动：`./activemq start`
+> - 关闭： `./activemq stop`
+> - 带运行日志的启动方式：  `./activemq start > /opt/myrunmq.log`
 
 
 

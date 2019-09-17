@@ -911,13 +911,75 @@ enum Singleton {
 >
 > ③ 不要覆盖基类中已经实现的方法
 
+#### 9、原型模式
 
+**需求：**
 
+> 克隆羊问题：
+>
+> 现在有一只羊 tom ，姓名：tom   年龄： 1   颜色：白色，请编写程序创建和 tom 羊属性完全相同的 10 只羊 
 
+**传统方法**
 
+```java
+public class Sheep {
+    private String name;
+    private int age;
+    private String color;
+    // getter setter....   
+}
 
+//---------------------------------------------
+public class Client {
+    public static void main(String[] args) {
+        Sheep sheep = new Sheep("tom",1,"白色");
+        Sheep sheep1 = new Sheep(sheep.getName(),sheep.getAge(),sheep.getColor());
+        System.out.println(sheep);
+        System.out.println(sheep1);
+    }
+}
+```
 
+**传统方法的优缺点：**
 
+> - 优点是比较好理解，简单易操作
+> - 在创建新的对象时，总是需要重新获取原始对象的属性，如果创建的对象比较复杂，效率较低
+> - 总是需要重新初始化对象，而不是动态的获得对象运行时的状态，不够灵活
+
+改进的思路：
+
+> Java 中 Object 类是所有类的根类，Object 类提供了一个 clone() 方法，该方法可以将一个 Java 对象复制一份，但是必须要实现 Cloneable 接口，该接口表示该类能够复制并且具有复制的能力。
+
+原型模式基本介绍：
+
+> - 原型模式是指：用原型实例指定创建对象的种类，并且通过拷贝这些原型，创建新的对象
+> - 原型模式是一种创建型设计模式，允许一个对象再创建另外一个可定制的对象，无需知道如何创建的细节
+> - 工作原理：通过将一个原型对象传给那个要发动创建的对象，这个要发动创建的对象通过请求原型对象拷贝它们自己来实施创建
+
+**改进后：**
+
+```java
+public class Sheep implements Cloneable {
+    private String name;
+    private int age;
+    private String color;
+    
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+        return super.clone();
+    }
+}
+
+//--------------------------------------
+public class Client {
+    public static void main(String[] args) throws CloneNotSupportedException {
+        Sheep sheep = new Sheep("tom",1,"白色");
+        Sheep sheep1 = (Sheep) sheep.clone();   // 会把对象属性都拷贝一份
+        System.out.println(sheep);
+        System.out.println(sheep1);
+    }
+}
+```
 
 
 

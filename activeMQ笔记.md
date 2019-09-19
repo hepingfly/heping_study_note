@@ -1,6 +1,6 @@
 # ActiveMQ笔记
 
-### activeMQ 入门
+### 一、activeMQ 入门
 
 **为什么要引入 MQ？**
 
@@ -46,7 +46,7 @@
 > - 削峰
 > - 异步
 
-### ActiveMQ 安装和控制台
+### 二、ActiveMQ 安装和控制台
 
 **下载：**
 
@@ -57,6 +57,81 @@
 > - 启动：`./activemq start`
 > - 关闭： `./activemq stop`
 > - 带运行日志的启动方式：  `./activemq start > /opt/myrunmq.log`
+
+**控制台访问：**
+
+> `http://ip:8161`
+>
+> 默认用户名和密码都是 admin
+
+**注：**
+
+> - ActiveMQ 采用 **61616** 端口提供 JMS 服务
+> - ActiveMQ 采用 **8161** 端口提供管理控制台服务 
+
+### 三、Java 编码实现 ActiveMQ 通讯
+
+> - 在点对点的消息传递域中，目的地被称为队列（queue）
+> - 在发布订阅消息传递域中，目的地被称为主题（topic）
+
+#### 1、消息生产者编码
+
+```java
+public class JmsProduce {
+    private static final String ACTIVE_URL = "tcp://192.168.148.141:61616";
+    private static final String QUEUE_NAME = "queue01";
+
+    public static void main(String[] args) throws JMSException {
+        // 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+
+        // 2.通过连接工厂，获得连接 connection 并启动访问
+        Connection connection = connectionFactory.createConnection();
+        connection.start();
+
+        // 3.创建会话 session,第一个参数是事务，第二个参数是签收
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+        // 4.创建目的地（具体是队列还是主题）
+        Queue queue = session.createQueue(QUEUE_NAME);
+
+        // 5.创建消息生产者
+        MessageProducer producer = session.createProducer(queue);
+
+        // 6.通过使用消息生产者生产 3 条消息发送到 MQ 的队列里面
+        for (int i = 1; i <= 3; i++) {
+            // 7.创建消息
+            TextMessage textMessage = session.createTextMessage("hello" + i);
+            // 8.通过生产者发送给 MQ
+            producer.send(textMessage);
+        }
+
+        // 9.关闭资源
+        producer.close();
+        session.close();
+        connection.close();
+        System.out.println("消息发送到 MQ 完成");
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

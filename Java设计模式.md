@@ -981,6 +981,189 @@ public class Client {
 }
 ```
 
+#### 10、浅拷贝、深拷贝
+
+**浅拷贝介绍**
+
+> - 对于数据类型是基本数据类型的成员变量，浅拷贝会直接进行值传递，也就是将该属性值复制一份给新的对象。
+> - 对于数据类型是引用类型的成员变量，比如说成员变量时某个数组、某个类的对象，那么浅拷贝会进行引用传递，也就是只将该成员变量的引用值（内存地址）复制一份给新的对象。因为实际上两个对象的成员变量都指向同一个实例，这种情况下，在一个对象中修改该成员变量会影响另一个对象该成员变量的值。
+> - Object 类的 clone 方法，默认是浅拷贝
+
+**深拷贝介绍**
+
+> - 复制对象的所有基本数据类型的成员变量值
+> - 为所有引用数据类型的成员变量申请存储空间，对象进行深拷贝要对整个对象进行拷贝
+
+**实现深拷贝的方式：**
+
+> - 重新 clone 方法来实现深拷贝
+> - 通过对象序列化实现深拷贝
+
+```java
+public class DeepCloneableTarget implements Serializable,Cloneable {
+
+    private String cloneName;
+    private String cloneClass;
+
+    public DeepCloneableTarget(String cloneName, String cloneClass) {
+        this.cloneName = cloneName;
+        this.cloneClass = cloneClass;
+    }
+
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+        return super.clone();
+    }
+}
+//============================================================
+public class DeepProtoType implements Serializable,Cloneable {
+
+    private String name;
+    private DeepCloneableTarget target;
+
+    /**
+     * 深拷贝实现方式1：重写clone 方法
+     * @return
+     * @throws CloneNotSupportedException
+     */
+    @Override
+    protected Object clone() throws CloneNotSupportedException {
+        Object clone = super.clone();
+        DeepProtoType d = (DeepProtoType) clone;
+        DeepCloneableTarget t = (DeepCloneableTarget)target.clone();
+        d.target = t;
+        return d;
+    }
+
+    public void setTarget(DeepCloneableTarget target) {
+        this.target = target;
+    }
+
+    /**
+     * 实现方式二：
+     * 通过对象序列化实现
+     * @return
+     */
+    public Object deepClone() {
+        ByteArrayOutputStream bos = null;
+        ObjectOutputStream oos = null;
+        ByteArrayInputStream bis = null;
+        ObjectInputStream ois = null;
+        DeepProtoType deepProtoType = null;
+
+        try {
+            bos = new ByteArrayOutputStream();
+            oos = new ObjectOutputStream(bos);
+            oos.writeObject(this);  // 当前这个对象以流的形式输出
+            // 反序列化
+            bis = new ByteArrayInputStream(bos.toByteArray());
+            ois = new ObjectInputStream(bis);
+            deepProtoType = (DeepProtoType) ois.readObject();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                ois.close();
+                bis.close();
+                oos.close();
+                bos.close();
+            } catch (Exception e) {
+
+            }
+        }
+        return deepProtoType;
+    }
+}
+```
+
+**原型模式注意事项和细节：**
+
+> - 创建新的对象比较复杂时，可以利用原型模式简化对象的创建过程，同时也能够提高效率
+> - 不用重新初始化对象，而是动态的获得对象运行时状态
+> - 在实现深拷贝的时候，可能需要复杂一点的代码
+>
+> 缺点：
+>
+> 需要为每一个类配置一个克隆方法，这对全新的类来说不是很难，但对已有的类进行改造时，需要修改其源代码，违背了 ocp 原则
+
+#### 11、建造者模式
+
+**盖房子需求：**
+
+> - 需要建房子：这一过程为打桩、砌墙、封顶
+> - 房子有各种各样的，比如：普通房、高楼、别墅，各种房子的过程虽然一样，但是要求不尽相同
+
+```java
+public abstract class AbstractHouse {
+    // 打地基
+    public abstract void buildBasic();
+
+    // 砌墙
+    public abstract void buildWalls();
+
+    // 封顶
+    public abstract void roofed();
+
+    public void build() {
+        buildBasic();
+        buildWalls();
+        roofed();
+    }
+}
+// =====================================
+public class CommonHouse extends AbstractHouse {
+    @Override
+    public void buildBasic() {
+        System.out.println("普通房子打地基");
+    }
+
+    @Override
+    public void buildWalls() {
+        System.out.println("普通房子砌墙");
+    }
+
+    @Override
+    public void roofed() {
+        System.out.println("普通房子封顶");
+    }
+}
+
+// =============================================
+public class Client {
+    public static void main(String[] args) {
+        CommonHouse house = new CommonHouse();
+        house.build();
+    }
+}
+```
+
+**使用传统方式分析：**
+
+> - 优点是比较好理解，简单易操作
+> - 缺点是：设计的程序结构，过于简单，没有设计缓存层对象，程序的扩展和维护不好。也就是说，这种设计方案，把产品（即房子）和创建产品的过程（即建房子的流程）封装在一起，耦合性增强。
+> - 解决方案：将产品和产品建造过程解耦         建造者模式
+
+**建造者模式基本介绍：**
+
+> - 建造者模式，又叫生成器模式。是一种对象构建模式，它可以将复杂对象的建造过程抽象出来，使这个抽象过程的不同实现方法可以构造出不同表现的对象
+> - 建造者模式是一步一步创建一个复杂的对象，它允许用户只通过指定复杂对象的类型和内容就可以构建他们，用户不需要知道内部的具体构建细节
+
+建造者模式的四个角色：
+
+> - Produce（产品角色）：一个具体的产品对象
+> - Builder（抽象建造者）：创建一个 Product 对象的各个部件指定的接口/抽象类
+> - ConcreteBuilder（具体建造者）：实现接口，构建和装配各个部件
+> - Director（指挥者）：构建一个使用 Builder 接口的对象。它主要是用于创建一个复杂的对象。它主要有两个作用：一是，隔离了客户与对象的生成过程，二是，负责控制产品对象的生产过程
+
+
+
+
+
+
+
 
 
 

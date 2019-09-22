@@ -2173,9 +2173,271 @@ Java 中可以作为 GC Roots 的对象
 >   - `-Xmixed` ：混合模式
 > - XX 参数
 >   - Boolean 类型
+>     - `-XX`    ： 「+ 」 或者 「-」 某个属性值
+>     -  「+ 」 表示开启     「-」 表示关闭
 >   - KV 设值类型
+>     - `-XX`     :   属性key=属性值value
 
+#### 3、JVM 的 XX 参数之布尔类型
 
+> - 是否打印 GC 收集细节
+>   - `-XX:-PrintGCDetails`
+>   - `-XX:+PrintGCDetails`
+> - 是否使用串行垃圾回收器
+>   - `-XX:-UseSerialGC`
+>   - `-XX:+UseSerialGC`
+
+#### 4、JVM 的 XX 参数之设值类型
+
+> - `-XX:MetaspaceSize=128M`
+> - `-XX:MaxTenuringThreshold=15`
+
+**注：**
+
+> 如何使用 `jinfo` 查看当前运行程序的配置
+>
+> `jinfo -flag 配置项 进程编号`
+>
+> ```
+> jinfo -flag InitialHeapSize 1622
+> -XX:InitialHeapSize=134217728
+> ```
+>
+> 
+
+**两个经典参数：**
+
+> - `-Xms`   ：  等价于    `-XX:InitialHeapSize`
+> - `-Xmx`   :     等价于    `-XX:MaxHeapSize`
+
+#### 5、JVM 初始默认值
+
+> - `-XX:+PrintFlagsInitial`
+>
+>   - 查看初始默认值
+>
+>   - 使用方式
+>
+>     - ```ja
+>       java -XX:+PrintFlagsInitial
+>       ```
+>
+> - `-XX:+PrintFlagsFinal`
+>
+>   - 查看修改更新
+>
+>   - 使用方式
+>
+>     - ```java
+>       java -XX:+PrintFlagsFinal -version
+>       ```
+>
+>     - ​
+>
+> - `-XX:+PrintCommandLineFlags`
+>
+>   - 打印命令行参数
+>
+>   - 使用方式
+>
+>     - ```java
+>       java -XX:+PrintCommandLineFlags -version
+>       ```
+>
+>       ​
+
+**注：**
+
+```java
+bool PrintFlagsFinal                          := true                                {product}
+uintx InitialCodeCacheSize                      = 2555904                             {pd product}
+
+//  :=     表示 jvm 或者用户修改过
+//  =      表示初始默认值
+```
+
+#### 6、JVM 常用基本配置参数
+
+常用参数：
+
+> - -Xms  
+>
+>   - 初始大小内存，默认为物理内存的 1/64
+>   - 等价于 `-XX:InitialHeapSize`
+>
+> - -Xmx
+>
+>   - 最大分配内存，默认为物理内存的 1/4
+>   - 等价于 `-XX:MaxHeapSize`
+>
+> - -Xss
+>
+>   - 设置单个线程栈的大小，一般默认为 512K ~ 1024K
+>   - 等价于  `-XX:ThreadStackSize`
+>
+> - -XX:MetaspaceSize
+>
+>   - 设置元空间大小
+>     - 元空间的本质和永久代类似，都是对 JVM 规范中方法区的实现。不过元空间与永久代之间最大的区别在于：**元空间并不是在虚拟机中，而是使用本地内存** 。因此，默认情况下，元空间的大小仅受本地内存限制
+>   - `-Xms10m -Xmx10m -XX:MetaspaceSize=1024m -XX:+PrintFlagsFinal`
+>
+> - -XX:+PrintGCDetails
+>
+>   - 输出详细 GC 收集日志信息
+>
+> - -XX:SurvivorRatio
+>
+>   - 设置新生代中 eden 和 s0/s1 空间的比例
+>   - 默认 `-XX:SurvivorRatio=8`    `Eden:S0:S1 = 8:1:1`    假如  `-XX:SurvivorRatio=4`     `Eden:S0:S1 = 4:1:1`        SurvivorRatio 的值就是设置 eden 区的比例占多少，S0/S1 相同
+>
+> - -XX:NewRatio
+>
+>   - 配置年轻代与老年代在堆结构的占比
+>   - 默认 `-XX:NewRatio=2`   新生代占 1，老年代占 2  ，年轻代占整个堆的 1/3    假如   `-XX:NewRatio=4`  新生代占 1，老年代占 4，年轻代占整个堆的 1/5  `NewRatio` 的值就是设置老年代的占比，剩下的 1 给新生代  
+>
+> - -XX:MaxTenuringThreshold
+>
+>   - 设置垃圾最大年龄
+>
+>   - ```java
+>     //查看默认进入老年代的年龄：
+>     jps -l
+>     2574 com.iflytek.java.HelloGC
+>
+>     jinfo -flag MaxTenuringThreshold 2574
+>     -XX:MaxTenuringThreshold=15
+>     ```
+>
+>   - `-XX:MaxTenuringThreshold=0` ：设置垃圾最大年龄。如果设置为 0 的话，则年轻代对象不经过 Survivor 区，直接进入年老代。对于年老代比较多的应用，可以提高效率。如果将此值设置为一个较大的值，则年轻代对象会在 Survivor 区进行多次复制，这样可以增加对象在年轻代的存活时间
+
+**JVM 参数设置-典型的一个配置案例：**
+
+```java
+-Xms128m -Xmx4096m -Xss1024k -XX:MetaspaceSize=512m -XX:+PrintCommandLineFlags -XX:+PrintGCDetails -XX:+UseSerialGC
+
+// 小说明：
+-XX:+UseSerialGC        // 串行垃圾回收器
+-XX:+UseParallelGC      // 并行垃圾回收器
+```
+
+#### 7、GC 回收前后对比
+
+使用 PrintGCDetails 可以打印详细的 GC 收集日志信息
+
+**YoungGC前后：**
+
+![YoungGC前后对比](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/YoungGC%E5%89%8D%E5%90%8E%E5%AF%B9%E6%AF%94.png)
+
+**FullGC前后：**
+
+![FullGC前后对比](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/FullGC%E5%89%8D%E5%90%8E%E5%AF%B9%E6%AF%94.png)
+
+**强引用、软引用、弱引用、虚引用**
+
+#### 8、强引用
+
+> 当内存不足，JVM 开始垃圾回收，对于强引用的对象，就算是出现了 OOM 也不会对该对象进行回收，死都不收。
+>
+> 强引用是我们最常见的普通对象引用，只要还有强引用指向一个对象，就能表明对象还活着。垃圾收集器就不会碰这种对象。在 Java 中最常见的就是强引用，把一个对象赋给一个引用变量，这个引用变量就是一个强引用。当一个对象被强引用变量引用时，它处于可达状态，它是不可能被垃圾回收机制回收的，即使该对象以后永远都不会被用到，JVM 也不会回收。因此强引用是造成 JAVA 内存泄漏的主要原因之一。
+
+```java
+public class StrongReferenceDemo {
+    public static void main(String[] args) {
+        Object obj1 = new Object();
+        Object obj2 = obj1;
+        obj1 = null;
+        System.gc();
+        System.out.println(obj2);
+    }
+}
+```
+
+#### 9、软引用
+
+> 软引用是一种相对于强引用弱化了一些的引用，需要用 `java.lang.ref.SoftReference` 类来实现，可以让对象豁免一些垃圾收集
+>
+> 对于只有软引用的对象来说：
+>
+> - 当系统内存充足时，它不会被回收
+>
+>
+> - 当系统内存不足时，它会被回收
+>
+> 软引用通常用在对内存敏感的程序中，比如高速缓存就有用到软引用，内存够用的时候就保留，不够用就回收。
+
+```java
+public class SoftReferenceDemo {
+
+    /**
+     * 内存够用就保留，不够用就回收
+     */
+    public static void softRefMemoryEnough() {
+        Object obj1 = new Object();
+        SoftReference<Object> softReference = new SoftReference<Object>(obj1);
+        System.out.println(obj1);
+        System.out.println(softReference.get());
+
+        // 这里我把 obj1 置为 null，然后手动 gc
+        obj1 = null;
+        System.gc();
+
+        // gc 过后，在内存充足的情况下看软引用是否会被回收
+        System.out.println(obj1);
+        System.out.println(softReference.get());  // java.lang.Object@60e53b93  发现并没有被回收
+    }
+
+    /**
+     * JVM 配置，故意产生大对象并配置小的内存，让它内存不够用导致 OOM，看软引用的回收情况
+     * -Xms5m -Xmx5m -XX:+PrintGCDetails
+     */
+    public static void softRefMemoryNotEnough() {
+        Object obj1 = new Object();
+        SoftReference<Object> softReference = new SoftReference<Object>(obj1);
+        System.out.println(obj1);
+        System.out.println(softReference.get());
+
+        obj1 = null;
+
+        try {
+            byte[] bytes = new byte[30 * 1024 * 1024];
+        } catch (Throwable t) {
+            t.printStackTrace();
+
+        } finally {
+            System.out.println(obj1);   // null
+            System.out.println(softReference.get()); // null 会发现在内存不够的情况下，软引用被回收了
+        }
+
+    }
+
+    public static void main(String[] args) {
+//        softRefMemoryEnough();
+        softRefMemoryNotEnough();
+    }
+}
+```
+
+#### 10、弱引用
+
+> 弱引用需要用 java.lang.ref.WeakReference 类来实现，它比软引用的生存期更短。对于只有弱引用的对象来说，只要垃圾回收机制一运行，不管 JVM 内存空间是否足够，都会回收该对象占用的内存。
+
+```java
+public class WeakReferenceDemo {
+    public static void main(String[] args) {
+        Object obj1 = new Object();
+        WeakReference<Object> weakReference = new WeakReference<Object>(obj1);
+        System.out.println(obj1);
+        System.out.println(weakReference.get());
+        obj1 = null;
+        System.gc();
+        System.out.println("========");
+        // 手动 gc 过后，发现弱引用被回收了，在内存充足的情况下弱引用也是会被回收的
+        System.out.println(obj1);  // null
+        System.out.println(weakReference.get());  // null
+
+    }
+}
+```
 
 
 

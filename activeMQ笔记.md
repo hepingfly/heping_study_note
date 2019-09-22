@@ -115,6 +115,45 @@ public class JmsProduce {
 }
 ```
 
+#### 2、消息消费者编码
+
+```java
+public class JmsConsumer {
+    private static final String ACTIVE_URL = "tcp://192.168.148.141:61616";
+    private static final String QUEUE_NAME = "queue01";
+
+    public static void main(String[] args) throws JMSException {
+        // 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+
+        // 2.通过连接工厂，获得连接 connection 并启动访问
+        Connection connection = connectionFactory.createConnection();
+        connection.start();
+
+        // 3.创建会话 session,第一个参数是事务，第二个参数是签收
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+        // 4.创建目的地（具体是队列还是主题）
+        Queue queue = session.createQueue(QUEUE_NAME);
+
+        // 5.创建消费者
+        MessageConsumer consumer = session.createConsumer(queue);
+        while (true) {
+            // 这里需要注意，生产者往队列里面放的是 TextMessage ，所以消费的时候也要强转成 TextMessage
+            TextMessage textMessage = (TextMessage) consumer.receive();
+            if (textMessage != null) {
+                System.out.println("消费者接收到消息：" + textMessage.getText());
+            } else {
+                break;
+            }
+        }
+        consumer.close();
+        session.close();
+        connection.close();
+    }
+}
+```
+
 
 
 

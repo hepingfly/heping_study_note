@@ -154,7 +154,69 @@ public class JmsConsumer {
 }
 ```
 
+#### 3、消息消费者 MessageListener 
 
+```java
+public class JmsConsumer {
+    private static final String ACTIVE_URL = "tcp://192.168.148.141:61616";
+    private static final String QUEUE_NAME = "queue01";
+
+    public static void main(String[] args) throws JMSException, IOException {
+        // 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+
+        // 2.通过连接工厂，获得连接 connection 并启动访问
+        Connection connection = connectionFactory.createConnection();
+        connection.start();
+
+        // 3.创建会话 session,第一个参数是事务，第二个参数是签收
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+        // 4.创建目的地（具体是队列还是主题）
+        Queue queue = session.createQueue(QUEUE_NAME);
+
+        // 5.创建消费者
+        MessageConsumer consumer = session.createConsumer(queue);
+
+        /**
+         * 通过监听的方式来消费消息
+         */
+        consumer.setMessageListener(new MessageListener() {
+            public void onMessage(Message message) {
+                if (message != null && message instanceof TextMessage) {
+                    TextMessage textMessage = (TextMessage) message;
+                    try {
+                        System.out.println(textMessage.getText());
+                    } catch (JMSException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+        System.in.read();
+    }
+}
+```
+
+#### 4、消费者三大消费情况
+
+> 第一种情况：
+>
+> 先生产，只启动 1号消费者。问：1号消费者能消费消息吗
+>
+> 答：可以
+>
+> 第二种情况：
+>
+> 先生产，先启动 1 号消费者再启动 2 号消费者。问：2号消费者还能消费消息吗
+>
+> 答：不可以。1 号消费者可以消费消息
+>
+> 第三种情况：
+>
+> 先启动 2 个消费者，再生产 6 条消息。问：消费情况
+>
+> 答：2个消费者消费消息一人一半
 
 
 

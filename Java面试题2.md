@@ -2439,9 +2439,145 @@ public class WeakReferenceDemo {
 }
 ```
 
+#### 11、软引用和弱引用使用场景
 
+> 假如有一个应用需要读取大量的本地图片
+>
+> - 如果每次读取图片都从硬盘读取则会严重影响性能
+> - 如果一次性全部加载到内存中又可能造成内存溢出
+>
+> 此时使用软引用可以解决这个问题
+>
+> 设计思路：用一个 HashMap 来保存图片的路径和相应图片对象关联的软引用之间的映射关系，在内存不足时，JVM 会自动回收这些缓存图片对象所占用的空间，从而有效的避免了 OOM 的问题。
+>
+> `Map<String, SoftReference<BitMap>> imageCache = new HashMap<String, SoftReference<BitMap>>();`
 
+#### 12、weakHashMap
 
+```java
+public class WeakHaspMapDemo {
+    public static void main(String[] args) {
+        myHashMap();
+        System.out.println("======");
+        weakHashMap();
+    }
+
+    private static void myHashMap() {
+        Map<Integer,String> map = new HashMap<Integer, String>();
+        Integer key = new Integer(1);
+        String value = "HashMap";
+        map.put(key,value);
+        System.out.println(map);  // {1=HashMap}
+
+        key = null; // 这个 key 指向的是 Integer 的堆空间，所以置空之后，map 并不受影响
+        System.out.println(map);   // {1=HashMap}
+
+        System.gc();   // 进行 gc 之后，看 map 是否还在
+        System.out.println(map);  // {1=HashMap}
+    }
+    private static void weakHashMap() {
+        Map<Integer,String> map = new WeakHashMap<>();
+        Integer key = new Integer(1);
+        String value = "WeakHashMap";
+        map.put(key,value);
+        System.out.println(map);  // {1=HashMap}
+
+        key = null; // 这个 key 指向的是 Integer 的堆空间，所以置空之后，map 并不受影响
+        System.out.println(map);   // {1=HashMap}
+
+        System.gc();   // 进行 gc 之后，看 map 是否还在
+        System.out.println(map);  // {}
+    }
+}
+```
+
+#### 13、虚引用简介
+
+虚引用需要 `java.lang.ref.PhantomReference` 类来实现。
+
+> 顾名思义，就是形同虚设，与其他几种引用都不同，虚引用并不会决定对象的生命周期。
+>
+> **如果一个对象仅持有虚引用，那么它就和没有任何引用一样，在任何时候都可能被垃圾回收器回收**，它不能单独使用，也不能通过它访问对象，虚引用必须和引用队列（Reference Queue）联合使用
+>
+> 虚引用的主要作用是跟踪对象被垃圾回收的状态。仅仅是提供了一种确保对象被 finalize 以后，做某些事情的机制。PhantomReference 的 get 方法总是返回 null ，因此无法访问对应的引用对象。其意义在于说明一个对象已经进入 finalization 阶段，可以被 gc 回收，用来实现比 finalization 机制更灵活的回收操作。
+>
+> 换句话说，设置虚引用关联的唯一目的，就是在这个对象被收集器回收的时候收到一个系统通知或者后续添加进一步的处理。Java 技术允许使用 finalize() 方法在垃圾收集器将对象从内存中清除出去之前做必要的清理工作。
+
+#### 14、ReferenceQueue引用队列
+
+```java
+public class ReferenceQueueDemo {
+    public static void main(String[] args) {
+        Object o1 = new Object();
+        // 引用队列
+        ReferenceQueue<Object> referenceQueue = new ReferenceQueue<Object>();
+        WeakReference<Object> weakReference = new WeakReference<Object>(o1, referenceQueue);
+
+        System.out.println(o1);   // java.lang.Object@60e53b93
+        System.out.println(weakReference.get());  // java.lang.Object@60e53b93
+        System.out.println(referenceQueue.poll());  // 引用队列中现在为 null
+
+        // 我现在想要证明，弱引用的对象在 gc 的时候会被装到引用队列
+        System.out.println("============");
+        o1 = null;
+        System.gc();
+        try {
+            // 停 0.5 秒，保证 gc 完成
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println(o1);   // null
+        System.out.println(weakReference.get());  // null
+        System.out.println(referenceQueue.poll());  // java.lang.ref.WeakReference@5e2de80c
+
+        // 以上例子证明了，弱引用在回收前需要被引用队列保存下
+    }
+}
+```
+
+#### 15、虚引用 PhantomReference
+
+> Java 提供了 4 种引用类型，在垃圾回收的时候，都有自己各自的特点
+>
+> `ReferenceQueue` 是用来配合引用工作的，没有 `ReferenceQueue` 一样可以运行 
+>
+> 创建引用的时候可以指定关联的队列，当 GC 释放对象内存的时候，会将引用加入到引用队列，如果程序发现某个虚引用已经被加入到引用队列，那么就可以在所引用的对象的内存被回收之前采取必要的行动，这相当于是一种通知机制
+>
+> 当关联的引用队列中有数据的时候，意味着引用指向的堆内存中的对象被回收。通过这种方式，JVM 允许我们在对象被销毁后，做一些我们自己想做的事
+
+```java
+public class PhantomReferenceDemo {
+    public static void main(String[] args) {
+        Object o1 = new Object();
+        ReferenceQueue<Object> referenceQueue = new ReferenceQueue<Object>();
+        // 监控 o1 对象的回收信息
+        PhantomReference<Object> phantomReference = new PhantomReference<>(o1, referenceQueue);
+
+        System.out.println(o1);  // java.lang.Object@60e53b93
+        System.out.println(referenceQueue.poll());  //  null   没有发生 gc ，队列中为 null
+        System.out.println(phantomReference.get());  // null  虚引用获取不到对象
+
+        // 我现在想要证明，虚引用的对象在 gc 的时候会被装到引用队列
+        System.out.println("============");
+        o1 = null;
+        System.gc();
+        try {
+            // 停 0.5 秒，保证 gc 完成
+            Thread.sleep(500);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        System.out.println(o1);   // null
+        System.out.println(phantomReference.get());  // null
+        System.out.println(referenceQueue.poll());  // java.lang.ref.PhantomReference@5e2de80c
+
+        // 以上例子证明了，虚引用在回收前需要被引用队列保存下
+    }
+}
+```
 
 
 

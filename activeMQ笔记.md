@@ -396,15 +396,184 @@ Java Message Service（Java 消息服务是 JavaEE 中的一个技术）
 >
 > - JMSMessageID ：唯一识别每个消息的标识，由 MQ 产生
 
+#### 4、Message之消息体
 
+封装具体的消息数据
 
+> 主要有以下 5 种消息体格式：
+>
+> - **TextMessage**
+>   - 普通字符串消息，包含一个 string
+> - **MapMessage**
+>   - 一个 Map 类型的消息， key 为 string 类型，而值为 Java 的基本类型
+> - BytesMessage
+>   - 二进制数组消息，包含一个 byte[] 数组
+> - StreamMessage
+>   - Java 数据流消息，用标准流操作来顺序的填充和读取
+> - ObjectMessage
+>   - 对象消息，包含一个可序列化的 Java 对象
 
+**注：**
 
+发送和接收的消息体类型必须一致对应
 
+**消息生产者：**
 
+```java
+public class JmsProduce {
+    private static final String ACTIVE_URL = "tcp://192.168.148.148:61616";
+    private static final String QUEUE_NAME = "queue01";
 
+    public static void main(String[] args) throws JMSException {
+        // 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
 
+        // 2.通过连接工厂，获得连接 connection 并启动访问
+        Connection connection = connectionFactory.createConnection();
+        connection.start();
 
+        // 3.创建会话 session,第一个参数是事务，第二个参数是签收
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+        // 4.创建目的地（具体是队列还是主题）
+        Queue queue = session.createQueue(QUEUE_NAME);
+
+        // 5.创建消息生产者
+        MessageProducer producer = session.createProducer(queue);
+
+        // 6.通过使用消息生产者生产 3 条消息发送到 MQ 的队列里面
+        for (int i = 1; i <= 3; i++) {
+            // 7.创建消息
+            TextMessage textMessage = session.createTextMessage("hello" + i);
+            // 8.通过生产者发送给 MQ
+            producer.send(textMessage);
+			
+            // 创建一个 map 类型的消息
+            MapMessage mapMessage = session.createMapMessage();
+            mapMessage.setString("k1","mapMessage----v1");
+            producer.send(mapMessage);
+        }
+
+        // 9.关闭资源
+        producer.close();
+        session.close();
+        connection.close();
+        System.out.println("消息发送到 MQ 完成");
+    }
+}
+```
+
+**消息消费者：**
+
+```java
+public class JmsConsumer {
+    private static final String ACTIVE_URL = "tcp://192.168.148.148:61616";
+    private static final String QUEUE_NAME = "queue01";
+
+    public static void main(String[] args) throws JMSException, IOException {
+        // 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+
+        // 2.通过连接工厂，获得连接 connection 并启动访问
+        Connection connection = connectionFactory.createConnection();
+        connection.start();
+
+        // 3.创建会话 session,第一个参数是事务，第二个参数是签收
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+        // 4.创建目的地（具体是队列还是主题）
+        Queue queue = session.createQueue(QUEUE_NAME);
+
+        // 5.创建消费者
+        MessageConsumer consumer = session.createConsumer(queue);
+
+        /**
+         * 通过监听的方式来消费消息
+         */
+        consumer.setMessageListener(new MessageListener() {
+            public void onMessage(Message message) {
+                if (message != null && message instanceof TextMessage) {
+                    TextMessage textMessage = (TextMessage) message;
+                    try {
+                        System.out.println(textMessage.getText());
+                    } catch (JMSException e) {
+                        e.printStackTrace();
+                    }
+                }
+                if (message != null && message instanceof MapMessage) {
+                    MapMessage mapMessage = (MapMessage) message;
+                    try {
+                        // 通过 key 来获取消息
+                        System.out.println(mapMessage.getString("k1"));
+                    } catch (JMSException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }
+        });
+        System.in.read();
+    }
+}
+```
+
+#### 5、Message之消息属性
+
+如果需要除消息头字段以外的值，那么可以使用消息属性
+
+> 他们是以属性名和属性值对的形式制定的。可以将属性视为消息头的扩展，属性指定一些消息头没有包括的附加信息，比如可以在属性里指定消息选择器。
+>
+> 消息的属性就像可以分配给一条消息的附加消息头一样。它们允许开发者添加有关消息的不透明附加信息。它们还用于暴露消息选择器在消息过滤时使用的数据。
+
+**消息生产者：**
+
+```java
+TextMessage textMessage = session.createTextMessage("hello" + i);
+if (i == 2) {
+    // 设置消息属性
+    textMessage.setStringProperty("c01","vip");
+}
+```
+
+**消息消费者：**
+
+```java
+if (message != null && message instanceof TextMessage) {
+    TextMessage textMessage = (TextMessage) message;
+    try {
+        System.out.println(textMessage.getText());
+        // 获取消息属性
+        System.out.println(textMessage.getStringProperty("c01"));
+    } catch (JMSException e) {
+        e.printStackTrace();
+    }
+}
+```
+
+#### 6、JMS可靠性之非持久化
+
+消息非持久化：当 activeMQ 宕机，消息就不存在了
+
+```java
+// 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+
+// 2.通过连接工厂，获得连接 connection 并启动访问
+Connection connection = connectionFactory.createConnection();
+connection.start();
+
+// 3.创建会话 session,第一个参数是事务，第二个参数是签收
+Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+// 4.创建目的地（具体是队列还是主题）
+Queue queue = session.createQueue(QUEUE_NAME);
+// 5.创建消息生产者
+MessageProducer producer = session.createProducer(queue);
+producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);      // 设置消息非持久化
+```
+
+那么这样设置的结果就是：
+
+我消息生产者把消息发送到 activeMQ 了，然后 activeMQ 宕机了，然后再把 activeMQ 重新启动，此时消息消费者想要去消费消息就消费不到了，因为生产者发送的消息没有持久化。
 
 
 

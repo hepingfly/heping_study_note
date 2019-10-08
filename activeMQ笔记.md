@@ -575,9 +575,40 @@ producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);      // 设置消息非�
 
 我消息生产者把消息发送到 activeMQ 了，然后 activeMQ 宕机了，然后再把 activeMQ 重新启动，此时消息消费者想要去消费消息就消费不到了，因为生产者发送的消息没有持久化。
 
+#### 7、JMS可靠性之持久化
 
+消息持久化：当 activeMQ 宕机，消息就依然存在
 
+```java
+// 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
 
+// 2.通过连接工厂，获得连接 connection 并启动访问
+Connection connection = connectionFactory.createConnection();
+connection.start();
+
+// 3.创建会话 session,第一个参数是事务，第二个参数是签收
+Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+// 4.创建目的地（具体是队列还是主题）
+Queue queue = session.createQueue(QUEUE_NAME);
+
+// 5.创建消息生产者
+MessageProducer producer = session.createProducer(queue);
+producer.setDeliveryMode(DeliveryMode.PERSISTENT);           // 设置消息持久化
+```
+
+那么这样设置的结果就是：
+
+我消息生产者把消息发送到 activeMQ 了，然后 activeMQ 宕机了，然后再把 activeMQ 重新启动，此时消息还存在消息队列中，消费者如果想要消费消息，还是可以消费到的，因为生产者发送的消息进行了持久化。
+
+**说明：**
+
+> 持久化消息
+>
+> 这是队列的默认发送模式，此模式保证这些消息只被传送一次和成功使用一次。对于这些消息，可靠性是优先考虑的因素。
+>
+> 可靠性的另一个重要方面是确保持久性消息传送至目标后，消息服务在向消费者传送他们之前不会丢失这些信息。
 
 
 

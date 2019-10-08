@@ -463,6 +463,81 @@ server {
 >
 > 安装完成后可以使用 `rpm -qa | grep keepalived` 检查一下。并且在 `/etc/keepalived/keepalived.conf`  会有配置文件，我们通过修改配置文件完成 keepalived 的配置。
 
+**主 nginx 所在服务器 keepalived 配置：**
+
+keepalived.conf：
+
+```sh
+! Configuration File for keepalived
+
+global_defs {
+   notification_email {
+     acassen@firewall.loc
+     failover@firewall.loc
+     sysadmin@firewall.loc
+   }
+   notification_email_from Alexandre.Cassen@firewall.loc
+   smtp_server 192.168.200.1
+   smtp_connect_timeout 30
+   router_id 192.168.148.145                         # 主机 ip ，通过这个 ip 去访问你的主机
+   vrrp_skip_check_adv_addr
+   vrrp_strict
+   vrrp_garp_interval 0
+   vrrp_gna_interval 0
+}
+
+# 检测脚本的配置
+vrrp_script chk_http_port {
+    script "/usr/local/src/nginx_check.sh"    # 检测脚本的路径
+    interval 2    # 检测脚本执行的间隔,这里每隔 2 秒执行一次 
+    weight 2      # 设置当前服务器的权重，比如说这里你设置成 -20 ，当你主服务器挂了后，从服务器就变成主服务器
+}
+
+# 虚拟 ip 配置
+vrrp_instance VI_1 {
+    state MASTER       # 备份服务器上将 MASTER 改为 BACKUP，设置是主服务器还是备份服务器
+    interface eth0     # 网卡，你在哪个网卡上绑定虚拟主机的虚拟 ip
+    virtual_router_id 51   # 主、备机的 virtual_router_id 必须相同
+    priority 100          # 主、备机取不同的优先级，主机值较大，备份机值较小
+    advert_int 1        # 每隔 1 秒钟发送一个心跳
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {     # VRRP 虚拟 ip 地址
+        192.168.200.16
+    }
+}
+```
+
+**nginx 检测脚本：**
+
+```sh
+#!/bin/bash
+A=`ps -C nginx ¨Cno-header |wc -l`
+if [ $A -eq 0 ];then
+    /usr/local/nginx/sbin/nginx
+    sleep 2
+    if [ `ps -C nginx --no-header |wc -l` -eq 0 ];then
+        killall keepalived
+    fi
+fi
+```
+
+**总结一下 nginx 配置高可用的步骤：**
+
+> 1、修改  `/etc/keepalived/keepalived.conf`  配置文件
+>
+> 2、在 `/usr/local/src/` 下添加 nginx 检测脚本（检测 nginx 是否还活着）
+>
+> 3、把两台服务器上 nginx 和 keepalived 都启动起来  
+>
+> keepalived 启动：`service keepalived start`
+>
+> 4、最终测试：通过虚拟 ip 去访问 nginx，如果一切正常的话，应该访问到的是主 nginx，然后在把主 nginx 停掉及和主 nginx 在一台服务器的 keepalived 停掉，正常情况下是可以访问到备份 nginx
+
+
+
 
 
 

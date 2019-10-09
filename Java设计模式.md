@@ -1,4 +1,4 @@
-# Java设计模式
+#  Java设计模式
 
 ## 设计模式原则
 
@@ -1222,6 +1222,36 @@ public class Client {
 代码见：
 
 `<https://github.com/hepingfly/heping_DesignPattern/tree/master/src/com/hepingfly/adapter/interfaceadapter>`
+
+#### 13、桥接模式
+
+**需求：**
+
+> 现在对不同手机类型的不同品牌实现操作编程（比如：开机、关机、上网、打电话等）
+
+**基本介绍：**
+
+> - 桥接模式是指，将实现与抽象放在两个不同的类层次中，使两个层次可以独立改变。
+> - 桥接模式是一种结构性设计模式
+> - 桥接模式基于类的最小设计原则，通过使用封装、聚合及继承等行为让不同的类承担不同的职责。它的主要特点是把抽象与行为实现分离开来，从而可以保持各部分的独立性以及应对他们的功能扩展。
+
+代码见：
+
+`<https://github.com/hepingfly/heping_DesignPattern/tree/master/src/com/hepingfly/bridge>`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

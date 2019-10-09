@@ -610,7 +610,73 @@ producer.setDeliveryMode(DeliveryMode.PERSISTENT);           // 设置消息持�
 >
 > 可靠性的另一个重要方面是确保持久性消息传送至目标后，消息服务在向消费者传送他们之前不会丢失这些信息。
 
+#### 8、持久化 topic
 
+**消息生产者：**
+
+```java
+public class JmsProduce_Topic_Persist {
+    private static final String ACTIVE_URL = "tcp://192.168.148.148:61616";
+    private static final String TOPIC_NAME = "topic-persist";
+
+    public static void main(String[] args) throws JMSException {
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+        Connection connection = connectionFactory.createConnection();
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+        Topic topic = session.createTopic(TOPIC_NAME);
+        MessageProducer producer = session.createProducer(topic);
+        producer.setDeliveryMode(DeliveryMode.PERSISTENT);
+        connection.start();   // 设置完持久化模式后，再开启连接
+        for (int i = 1; i <= 3; i++) {
+            TextMessage textMessage = session.createTextMessage("hello" + i);
+            producer.send(textMessage);
+        }
+        producer.close();
+        session.close();
+        connection.close();
+        System.out.println("消息发送到 MQ 完成");
+    }
+}
+```
+
+**消息消费者：**
+
+```java
+public class JmsConsumer_Topic_Persist {
+    private static final String ACTIVE_URL = "tcp://192.168.148.148:61616";
+    private static final String TOPIC_NAME = "topic-persist";
+    public static void main(String[] args) throws JMSException {
+        // 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+
+        // 2.通过连接工厂，获得连接 connection 并启动访问
+        Connection connection = connectionFactory.createConnection();
+        connection.setClientID("heping");   // 表明 heping 这个用户订阅
+
+        // 3.创建会话 session,第一个参数是事务，第二个参数是签收
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+        // 4.创建目的地（具体是队列还是主题）
+        Topic topic = session.createTopic(TOPIC_NAME);
+        TopicSubscriber topicSubscriber = session.createDurableSubscriber(topic, "这个参数是备注");
+        connection.start();
+
+        Message message = topicSubscriber.receive();
+        while (message != null) {
+            TextMessage textMessage = (TextMessage) message;
+            System.out.println("收到的持久化 topic" + textMessage.getText());
+            message = topicSubscriber.receive(1000);
+        }
+        session.close();
+        connection.close();
+
+        /**
+         * 一定要先运行一次消费者，等于向 MQ 注册，类似我订阅了这个主题
+         * 然后再运行生产者发送消息，此时无论消费者是否在线，都会收到。不在线的话，下次连接的时候，会把没有收过的消息都接收下来
+         */
+    }
+}
+```
 
 
 

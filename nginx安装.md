@@ -536,9 +536,20 @@ fi
 >
 > 4、最终测试：通过虚拟 ip 去访问 nginx，如果一切正常的话，应该访问到的是主 nginx，然后在把主 nginx 停掉及和主 nginx 在一台服务器的 keepalived 停掉，正常情况下是可以访问到备份 nginx
 
+### Nginx 原理
 
+#### 1、原理解释
 
+你查 nginx 进程会发现有一个 master 进程和一个 worker 进程。当客户端发送一个请求到 nginx 中，请求会先到 master，然后 master 把请求分担给 worker，让 worker 去执行具体的任务。但是一个 master 下面可能会有很多的 worker ，这个 worker 是怎么获得任务的呢？ 这里面用到一种机制 ，就是争抢机制。
 
+**一个 master 和多个 worker 的好处：**
+
+> - 可以使用 `nginx -s reload` 进行热部署，利用 nginx 进行热部署操作（比如说现在 1 个 master 和 4 个 worker，有 1 个 worker 有任务正在执行，这里你进行 reload ，这个执行任务的 worker 照常执行，其他 3 个 worker 重新加载，有请求过来其他 3 个 worker 负责争抢执行，等第一个 worker 执行完之后，再重新加载新的配置，这样几个 worker 都是重新加载过的）
+> - 每个 worker 是独立的进程，如果有其中的一个 worker 出现问题，其他 worker 是独立的，继续进行争抢，实现请求过程，不会造成服务中断
+
+**一般我们需要设置多少个 worker**
+
+> Nginx 同 redis 类似都采用了 io 多路复用机制，每个 worker 都是一个独立的进程，但每个进程里只有一个主线程，通过异步非阻塞的方式来处理请求，即使是千万个请求也不在话下。每个 worker 的线程可以把一个 cpu 的性能发挥到极致。所以 worker 数和服务器的 cpu 数相等是最为适宜的。设少了会浪费 cpu ，设多了会造成 cpu 频繁切换上下文带来的损耗。
 
 
 

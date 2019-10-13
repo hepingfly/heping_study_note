@@ -678,9 +678,143 @@ public class JmsConsumer_Topic_Persist {
 }
 ```
 
+#### 9、消息生产者事务
+
+```java
+public class JmsProduce_TX {
+    private static final String ACTIVE_URL = "tcp://192.168.148.148:61616";
+    private static final String QUEUE_NAME = "queue01";
+
+    public static void main(String[] args) throws JMSException {
+        // 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+
+        // 2.通过连接工厂，获得连接 connection 并启动访问
+        Connection connection = connectionFactory.createConnection();
+        connection.start();
+
+        // 3.创建会话 session,第一个参数是事务，第二个参数是签收
+        Session session = connection.createSession(true, Session.AUTO_ACKNOWLEDGE);
+
+        // 4.创建目的地（具体是队列还是主题）
+        Queue queue = session.createQueue(QUEUE_NAME);
+
+        // 5.创建消息生产者
+        MessageProducer producer = session.createProducer(queue);
+        producer.setDeliveryMode(DeliveryMode.PERSISTENT);
+
+        // 6.通过使用消息生产者生产 3 条消息发送到 MQ 的队列里面
+        for (int i = 1; i <= 3; i++) {
+            // 7.创建消息
+            TextMessage textMessage = session.createTextMessage("hello" + i);
+            // 8.通过生产者发送给 MQ
+            producer.send(textMessage);
+
+        }
+
+        // 9.关闭资源
+        producer.close();
+        session.commit();   // 提交事务
+        session.close();
+        connection.close();
+        System.out.println("消息发送到 MQ 完成");
 
 
+    }
 
+    /**
+     * 使用事务的好处，正常情况下比如我们发 10 条消息，如果都正常
+     * 直接 session.commit() 即可
+     * 但如果其中有一条失败了，我们希望可以回滚，就可以使用
+     * session.rollback()
+     * try {
+
+     } catch (Exception e) {
+        session.rollback()
+     }
+
+     */
+    // 此外，作为消息生产者，开启事务后，消息生产完，需要及时提交事务，如果未提交事务
+    // 你生产的消息根本没有到消息队列中去
+}
+```
+
+#### 10、消息消费者事务
+
+```java
+public class JmsConsumer_TX {
+    private static final String ACTIVE_URL = "tcp://192.168.148.148:61616";
+    private static final String QUEUE_NAME = "queue01";
+
+    public static void main(String[] args) throws JMSException, IOException {
+        // 1.创建连接工厂，按照给定的 url 地址，采用默认用户名和密码
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+
+        // 2.通过连接工厂，获得连接 connection 并启动访问
+        Connection connection = connectionFactory.createConnection();
+        connection.start();
+
+        // 3.创建会话 session,第一个参数是事务，第二个参数是签收
+        Session session = connection.createSession(true, Session.AUTO_ACKNOWLEDGE);
+
+        // 4.创建目的地（具体是队列还是主题）
+        Queue queue = session.createQueue(QUEUE_NAME);
+
+        // 5.创建消费者
+        MessageConsumer consumer = session.createConsumer(queue);
+
+        /**
+         * 同步阻塞方式（receive）：订阅者或接受者调用 consumer 的 receive 方法来接收消息
+         * receive 方法能够在接收到消息之前（或超时之前）将一直阻塞
+         */
+        while (true) {
+            TextMessage textMessage = (TextMessage) consumer.receive(3000);
+            if (textMessage != null) {
+                System.out.println("消费者接收到消息：" + textMessage.getText());
+            } else {
+                break;
+            }
+        }
+        consumer.close();
+        session.commit();   // 提交事务
+        session.close();
+        connection.close();
+    }
+    // 作为消费者，开启事务后，消费完就要把事务提交，如果未提交事务，会出现重复消费消息的情况
+    // 就是消息已经被你消费过了，但是还是可以消费的情况
+}
+```
+
+**注：**
+
+**事务偏生产者，签收偏消费者**
+
+#### 11、消息非事务模式下签收
+
+```java
+public class JmsProduce_TX {
+    public static void main(String[] args) throws JMSException {
+        
+        // 假如生产者生产消息，指定的是手动方式签收
+        Session session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
+    }
+}
+
+//-----------------------那么消费者也需要手动方式签收---------------
+public class JmsConsumer_TX {
+        Session session = connection.createSession(false, Session.CLIENT_ACKNOWLEDGE);
+        while (true) {
+            TextMessage textMessage = (TextMessage) consumer.receive(3000);
+            if (textMessage != null) {
+                System.out.println("消费者接收到消息：" + textMessage.getText());
+                textMessage.acknowledge();   // 这里要手动进行签收，否则会出现消息可以重复消费情况
+            } else {
+                break;
+            }
+        }
+}
+
+```
 
 
 

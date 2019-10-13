@@ -2419,7 +2419,7 @@ public class SoftReferenceDemo {
 
 #### 10、弱引用
 
-> 弱引用需要用 java.lang.ref.WeakReference 类来实现，它比软引用的生存期更短。对于只有弱引用的对象来说，只要垃圾回收机制一运行，不管 JVM 内存空间是否足够，都会回收该对象占用的内存。
+> 弱引用需要用 `java.lang.ref.WeakReference` 类来实现，它比软引用的生存期更短。对于只有弱引用的对象来说，只要垃圾回收机制一运行，不管 JVM 内存空间是否足够，都会回收该对象占用的内存。
 
 ```java
 public class WeakReferenceDemo {
@@ -2578,6 +2578,113 @@ public class PhantomReferenceDemo {
     }
 }
 ```
+
+### 八、OOM相关
+
+#### 1、StackOverflowError
+
+```java
+public class StackOverflowErrorDemo {
+    public static void main(String[] args) {
+        main(args);   // Exception in thread "main" java.lang.StackOverflowError
+    }
+}
+```
+
+#### 2、OOM之 Java Heap Space
+
+```java
+public class JavaHeapSpaceDemo {
+    public static void main(String[] args) {
+        // 我配置了虚拟机参数 -Xms10m -Xmx10m    初始化堆内存和最大堆内存都是 10m
+        byte[] b = new byte[20 * 1024 * 1024];   // 这里 new 了 20m 的字节数组
+        // Exception in thread "main" java.lang.OutOfMemoryError: Java heap space
+    }
+}
+```
+
+#### 3、OOM之 GC overhead limit exceeded
+
+> GC 回收时间过长时会抛出 OutOfMemoryError 。过长的定义是，超过 98% 的时间用来做 GC ，并且回收了不到 2% 的堆内存，连续多次 GC 都只回收了不到 2% 的极端情况下才会抛出。假如不抛出 GC overhead limit 错误会发生什么情况呢？
+>
+> 那就是 GC 清理的这么点内存很快会再次填满，迫使 GC 再次执行，这样就形成恶性循环，CPU 使用率一直是 100%，而 GC 却没有任何成果。
+
+![overhead_limit](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/overhead_limit.png)
+
+```java
+public class GCOverheadDemo {
+    /**
+     * JVM 参数配置： -Xms10m -Xmx10m -XX:+PrintGCDetails -XX:MaxDirectMemorySize=5m
+     */
+    public static void main(String[] args) {
+        int i = 0;
+        List<String> list = new ArrayList<String>();
+        try {
+            while (true) {
+                list.add(String.valueOf(++i).intern());
+            }
+        } catch (Throwable e) {
+            System.out.println("***********" + i);
+            e.printStackTrace();
+            throw e;
+        }
+    }
+}
+
+// 执行结果,进行了很多次 GC，最后抛出下面错误
+// Exception in thread "main" java.lang.OutOfMemoryError: GC overhead limit exceeded
+// 随便找一条 GC 的日志来看：
+// [Full GC (Ergonomics) [PSYoungGen: 2047K->2047K(2560K)] [ParOldGen: 6998K->6998K(7168K)] 9046K->9046K(9728K), [Metaspace: 3314K->3314K(1056768K)], 0.0266330 secs] [Times: user=0.05 sys=0.00, real=0.03 secs]
+
+// 发现一直在做 GC ，但是 GC 效果却不明显。连续多次 GC 都回收不了多少内存，只有抛出 error 否则，恶性循环。
+```
+
+#### 4、OOM 之 Direct buffer memory
+
+> 写 NIO 程序经常使用 ByteBuffer 来读取或者写入数据，这是一种基于通道（Channel）与缓冲区（Buffer）的 I/O 方式。它可以使用 Native 函数库直接分配堆外内存，然后通过一个存在在 Java 堆里面的 DirectByteBuffer 对象作为这块内存的引用进行操作。这样能在一些场景中显著提高性能，因为避免了在 Java 堆和 Native 堆中来回复制数据。
+>
+> `ByteBuffer.allocate(capability)`  第一种方式是分配 JVM 堆内存，属于 GC 管辖范围，由于需要拷贝所以速度相对较慢。
+>
+> `ByteBuffer.allocateDirect(capability)`  第二种方式是分配 OS 本地内存，不属于 GC 管辖范围，由于不需要内存拷贝，所以速度相对较快。
+>
+> 但如果不断分配本地内存，堆内存很少使用，那么 JVM 就需要执行 GC ，DirectByteBuffer 对象们就不会被回收，这时候堆内存充足，但本地内存可能已经用光了，再次尝试分配本地内存就会出现 OutOfMemory ，程序直接崩溃。
+
+```java
+public class DirectBufferMemoryDemo {
+    public static void main(String[] args) {
+        // 如果什么都不配置 JVM 内存，大概是本地内存的 1/4
+        System.out.println("配置的 maxDirectMemory" + (sun.misc.VM.maxDirectMemory()/ (double)1024 / 1024) + "MB");
+        // 这里调用的是 jdk 包中 rt.jar 包中的方法  sun.misc.VM.maxDirectMemory()
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        // -Xms10m -Xmx10m -XX:MaxDirectMemorySize=5m
+        // 配置 5MB 实际使用 6MB
+        ByteBuffer buffer = ByteBuffer.allocateDirect(6 * 1024 * 1024);
+    }
+	
+    // 直接内存我给它调到了 5M ，但是分配了 6M 内存，内存用光了，就报 OutOfMemory 了
+    // 最后运行结果 Exception in thread "main" java.lang.OutOfMemoryError: Direct buffer memory
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

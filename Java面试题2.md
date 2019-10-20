@@ -2647,7 +2647,7 @@ public class GCOverheadDemo {
 >
 > `ByteBuffer.allocateDirect(capability)`  第二种方式是分配 OS 本地内存，不属于 GC 管辖范围，由于不需要内存拷贝，所以速度相对较快。
 >
-> 但如果不断分配本地内存，堆内存很少使用，那么 JVM 就需要执行 GC ，DirectByteBuffer 对象们就不会被回收，这时候堆内存充足，但本地内存可能已经用光了，再次尝试分配本地内存就会出现 OutOfMemory ，程序直接崩溃。
+> 但如果不断分配本地内存，堆内存很少使用，那么 JVM 就不需要执行 GC ，DirectByteBuffer 对象们就不会被回收，这时候堆内存充足，但本地内存可能已经用光了，再次尝试分配本地内存就会出现 OutOfMemory ，程序直接崩溃。
 
 ```java
 public class DirectBufferMemoryDemo {
@@ -2669,6 +2669,227 @@ public class DirectBufferMemoryDemo {
     // 最后运行结果 Exception in thread "main" java.lang.OutOfMemoryError: Direct buffer memory
 }
 ```
+
+#### 5、OOM 之 unable to create new native thread
+
+> 高并发请求服务器时，经常出现如下异常：`java.lang.OutOfMemoryError:unable to create new native thread`
+>
+> 准确的说  native thread 异常与对应的平台有关
+>
+> **导致原因：**
+>
+> - 你的应用创建了太多线程，一个应用进程创建多个线程，超过系统承载极限
+> - 你的服务器并不允许你的应用程序创建这么多线程，linux 系统默认允许单个进程可以创建的线程数是 1024 个，你的应用创建超过这个数量，就会报 `java.lang.OutOfMemoryError:unable to create new native thread`
+>
+> **解决办法：**
+>
+> - 想办法降低你应用程序创建线程的数量，分析应用是否真的需要创建这么多线程，如果不是，修改代码将线程数降到最低
+> - 对于有的应用，确实需要创建很多的线程，远超过 linux 系统的默认 1024 个线程的限制，可以通过修改 linux 服务器配置，扩大 linux 默认限制
+
+```java
+public class UnableCreateNewThreadDemo {
+    public static void main(String[] args) {
+        for (int i = 1; ;i++) {  // 无限 for 循环
+            System.out.println("-------i =" + i);
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Thread.sleep(Integer.MAX_VALUE);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }, "" + i).start();
+        }
+    }
+}
+
+// 这样就会有无数个线程被创建，被创建之后 sleep 在那，不会停止，一旦达到 linux 系统默认线程限制，就会报 Exception in thread "main" java.lang.OutOfMemoryError: unable to create new native thread
+
+```
+
+ **unable to create new native thread 服务器上线调整：**
+
+```shell
+vim /etc/security/limits.d/90-nproc.conf 
+
+
+*          soft    nproc     1024
+root       soft    nproc     unlimited
+heping       soft    nproc     3000
+# 假如说想要用 heping 这个用户运行，然后希望他生成的线程多一些，可以编辑这个配置文件，在下面加一行，然后把数字调大点
+```
+
+#### 6、OOM 之 Metaspace
+
+> Java8 及以后的版本使用 Metaspace 来替代永久代
+>
+> Metaspace 是方法区在 HotSpot 中的实现，他与永久代最大的区别在于：Metaspace 并不在虚拟机内存中而是使用本地内存。也即在 java8 中，classe metadata（the virtual machines internal presentation of Java class）,被存储在叫做 Metaspace 的 native memory
+>
+> 永久代（java8 以后被元空间 Metaspace 取代了）存放了以下信息：
+>
+> - 虚拟机加载的类信息
+> - 常量池
+> - 静态变量
+> - 即时编译后的代码
+
+```java
+/**
+ * 模拟 Metaspace 空间溢出，我们不断生成类往元空间灌，类占据的空间总是会超过
+ * Metaspace 指定的空间大小的
+ *
+ * JVM 参数设置：
+ *  -XX:MetaspaceSize=8m -XX:MaxMetaspaceSize=8m
+ */
+public class MetaspaceOOMTest {
+    static class OOMTest {
+
+    }
+    public static void main(String[] args) {
+        int i = 0;   // 模拟计数多少次后发生异常
+        try {
+            while (true) {
+                i++;
+                System.out.println(i);
+                OOMTest o = new OOMTest();
+            }
+
+        } catch (Throwable e) {
+            System.out.println("多少次后发生了异常：" + i);
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### 九、GC
+
+#### 1、垃圾收集器回收种类
+
+**GC 垃圾回收算法和垃圾收集器的关系？分别是什么？**
+
+GC 算法（引用计数、复制拷贝、标记清除、标记整理）是内存回收的方法论，垃圾收集器就是算法的落地实现。
+
+四种主要垃圾收集器：
+
+> - Serial
+> - Parallel
+> - CMS
+> - G1
+
+#### 2、四大垃圾回收方式
+
+> - 串行垃圾回收器（Serial）
+>   - 它为单线程环境设计且只使用一个线程进行垃圾回收，会暂停所有的用户线程。所以不适合服务器环境
+> -  并行垃圾回收器（Parallel）
+>   - 多个垃圾收集线程并行工作，此时用户线程是暂停的，适用于科学计算/大数据后台处理等弱交互场景
+> - 并发垃圾回收器（CMS）
+>   - 用户线程和垃圾收集线程同时执行（不一定是并行，可能是交替执行），不需要停顿用户线程。互联网公司多用它，适用对响应时间有要求的场景
+> - G1 垃圾回收器
+>   - G1 垃圾回收器将堆内存分割成不同的区域然后并发的对其进行垃圾回收
+
+#### 3、查看默认垃圾收集器
+
+使用命令：
+
+`java -XX:+PrintCommandLineFlags -version`
+
+结果：
+
+```Java
+-XX:InitialHeapSize=134217728 -XX:MaxHeapSize=2147483648 -XX:+PrintCommandLineFlags -XX:+UseCompressedClassPointers -XX:+UseCompressedOops -XX:+UseParallelGC  // 表示使用并行垃圾回收器
+java version "1.8.0_161"
+Java(TM) SE Runtime Environment (build 1.8.0_161-b12)
+Java HotSpot(TM) 64-Bit Server VM (build 25.161-b12, mixed mode)
+```
+
+#### 4、GC 约定参数说明
+
+> - DefNew ：Default New Generation
+> - Tenured ：Old
+> - ParNew ：Parallel New Generation
+> - PSYoungGen ：Parallel Scavenge
+> - ParOldGen ：Parallel Old Generation
+
+**Server/Client 模式分别是什么意思**
+
+```Java
+java -version
+java version "1.8.0_161"
+Java(TM) SE Runtime Environment (build 1.8.0_161-b12)
+Java HotSpot(TM) 64-Bit Server VM (build 25.161-b12, mixed mode)   
+// 64-Bit Server  就表示 Server 模式
+```
+
+> - 适用范围
+>   - 只需要掌握 Server 模式即可，Client 模式基本不会用
+> - 操作系统
+>   - 32位 Windows 操作系统，不论硬件如何都默认使用 Client 的 JVM 模式
+>   - 32位其他操作系统，2G内存同时有 2 个 cpu 以上用 Server 模式，低于该配置还是 Client 模式
+>   - 64位用的都是 Server 模式
+
+#### 5、Seria 收集器
+
+> 串行收集器：Seria 收集器
+>
+> 一个单线程的收集器，在进行垃圾收集的时候，必须暂停其他所有的工作线程直到它收集结束
+>
+> 串行收集器是最古老，最稳定以及效率最高的收集器，只使用一个线程去回收，但其在垃圾收集过程中可能会产生较长的停顿（Stop The World 状态）。虽然在收集垃圾过程中需要暂停其他所有的线程，但是它简单高效，对于限定单个 CPU 来说，没有线程交互的开销，可以获得最高的单线程垃圾收集效率，因此 Serial 垃圾收集器依然是 java 虚拟机运行在 Client 模式下默认的新生代垃圾收集器。
+>
+> **对应的 JVM 参数：**
+>
+> `-XX:+UseSerialGC`
+>
+> 开启后会使用 Serial（Young 区用）+ Serial Old（Old 区用）的收集器组合
+>
+> 表示新生代和老年代都会使用串行收集器，新生代使用复制算法，老年代使用标记-整理算法
+
+![串行收集器](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E4%B8%B2%E8%A1%8C%E6%94%B6%E9%9B%86%E5%99%A8.png)
+
+#### 6、ParNew 收集器
+
+> 并行收集器：ParNew 收集器
+>
+> 使用多线程进行垃圾回收，在垃圾收集时，会 Stop-the-World 暂停其他所有的工作线程直到它收集结束
+>
+> **ParNew 收集器其实就是 Serial 收集器新生代的并行多线程版本**，最常见的应用场景是配合老年代的 CMS GC 工作，其余的行为和 Serial 收集器完全一样。ParNew 收集器在垃圾收集过程中同样也要暂停所有其他的工作线程。它是很多 Java 虚拟机运行在 Serval 模式下新生代的默认垃圾收集器。
+>
+> **对应的 JVM 参数：**
+>
+> `-XX:+UseParNewGC`
+>
+> 开启上述参数后，会使用：ParNew（Young 区用） + Serial Old 的收集器组合，新生代使用复制算法，老年代采用标记整理算法
+>
+> 启用 ParNew 收集器，只影响新生代的收集，不影响老年代
+
+![ParNew收集器](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/ParNew%E6%94%B6%E9%9B%86%E5%99%A8.png)
+
+**注：**
+
+这个收集器只是新生代用并行，老年代还是用串行
+
+#### 7、Parallel 收集器
+
+> Parallel Scavenge 收集器类似 ParNew ，也是一个新生代垃圾收集器，使用复制算法，也是一个并行的多线程垃圾收集器，俗称吞吐量优先收集器。
+>
+> 你可以把 Parallel 收集器理解成串行收集器在新生代和老年代的并行化
+>
+> 它重点关注的是：
+>
+> **可控制的吞吐量**（Thoughput=运行用户代码时间/(运行用户代码时间 + 垃圾收集时间)，也即比如程序运行 100 分钟，垃圾收集时间 1 分钟，吞吐量就是 99%）。高吞吐量意味着高效利用 CPU 的时间，它多用于在后台运算而不需要太多的交互的任务。
+>
+> **自适应调节策略也是 ParallelScavenge 收集器与 ParNew 收集器的一个重要区别**。（自适应调整策略：虚拟机会根据当前系统的运行情况收集性能监控信息，动态调整这些参数以提供最合适的停顿时间（`-XX:MaxGCPauseMillis`）或最大的吞吐量）
+>
+> **对应 JVM 参数：**
+>
+> `-XX:+UseParallelGC 或 -XX:+UseParallelOldGC（可互相激活） `
+>
+> 开启该参数后：新生代使用复制算法，老年代使用标记-整理算法
+
+![并行收集器](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E5%B9%B6%E8%A1%8C%E6%94%B6%E9%9B%86%E5%99%A8.png)
+
+
 
 
 

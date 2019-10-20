@@ -904,6 +904,132 @@ public class EmbedBroker {
 // 使用 tcp://192.168.148.148:61616  这个 url 去连接
 ```
 
+### 六、Spring 整合 ActiveMQ
+
+#### 1、整合之队列生产者
+
+**pom.xml**
+
+```xml
+<dependency>
+    <groupId>com.fasterxml.jackson.core</groupId>
+    <artifactId>jackson-databind</artifactId>
+    <version>2.9.5</version>
+</dependency>
+ 
+<!--activemq 对 JMS 的支持，整合 spring 和 activemq-->
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-jms</artifactId>
+    <version>4.3.23.RELEASE</version>
+</dependency>
+
+<!--activemq 所需要的 pool 包配置-->
+<dependency>
+    <groupId>org.apache.activemq</groupId>
+    <artifactId>activemq-pool</artifactId>
+    <version>5.15.9</version>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-core</artifactId>
+    <version>4.3.23.RELEASE</version>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-context</artifactId>
+    <version>4.3.23.RELEASE</version>
+</dependency>
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-aop</artifactId>
+    <version>4.3.23.RELEASE</version>
+</dependency>
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-orm</artifactId>
+    <version>4.3.23.RELEASE</version>
+</dependency>
+<dependency>
+    <groupId>org.aspectj</groupId>
+    <artifactId>aspectjrt</artifactId>
+    <version>1.6.1</version>
+</dependency>
+<dependency>
+    <groupId>aspectj</groupId>
+    <artifactId>aspectjweaver</artifactId>
+    <version>1.5.3</version>
+</dependency>
+
+<dependency>
+    <groupId>cglib</groupId>
+    <artifactId>cglib</artifactId>
+    <version>2.1_2</version>
+</dependency>
+```
+
+**spring 配置文件：**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--配置自动扫描的包-->
+    <context:component-scan base-package="com.hepingfly"></context:component-scan>
+
+    <!--配置生产者-->
+    <bean id="jmsFactory" class="org.apache.activemq.pool.PooledConnectionFactory" destroy-method="stop">
+        <property name="connectionFactory">
+            <!--真正可以产生 Connection 的 ConnectionFactory，由对应的 JMS 服务厂商提供-->
+            <bean class="org.apache.activemq.ActiveMQConnectionFactory">
+                <property name="brokerURL" value="tcp://192.168.148.148:61616"></property>
+            </bean>
+        </property>
+        <property name="maxConnections" value="100"></property>
+    </bean>
+    <!--这个是队列的目的地-->
+    <bean id="destinationQueue" class="org.apache.activemq.command.ActiveMQQueue">
+        <constructor-arg index="0" value="spring-active-queue"></constructor-arg>
+    </bean>
+
+    <!--Spring 提供的 JMS 工具类，它可以进行消息的发送和接收-->
+    <bean id="jmsTemplate" class="org.springframework.jms.core.JmsTemplate">
+        <property name="connectionFactory" ref="jmsFactory"></property>
+        <property name="defaultDestination" ref="destinationQueue"></property>
+        <property name="messageConverter">
+            <bean class="org.springframework.jms.support.converter.SimpleMessageConverter"></bean>
+        </property>
+    </bean>
+</beans>
+```
+
+**生产者代码：**
+
+```java
+@Service
+public class SpringMQ_Produce {
+
+    @Autowired
+    private JmsTemplate jmsTemplate;
+    public static void main(String[] args) {
+        ApplicationContext ctx = new ClassPathXmlApplicationContext("applicationContext.xml");
+        SpringMQ_Produce produce = ctx.getBean(SpringMQ_Produce.class);
+        produce.jmsTemplate.send(new MessageCreator() {
+            public Message createMessage(Session session) throws JMSException {
+                TextMessage textMessage = session.createTextMessage("****spring 和 activemq 整合");
+                return textMessage;
+            }
+        });
+        System.out.println("send task over...");
+    }
+}
+```
+
 
 
 

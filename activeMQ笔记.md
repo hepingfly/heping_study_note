@@ -1030,6 +1030,364 @@ public class SpringMQ_Produce {
 }
 ```
 
+#### 2、整合队列消费者
+
+**消费者代码：**
+
+```java
+@Service
+public class SpringMQ_Consumer {
+
+    @Autowired
+    private JmsTemplate jmsTemplate;
+    public static void main(String[] args) {
+        ApplicationContext ctx = new ClassPathXmlApplicationContext("applicationContext.xml");
+        SpringMQ_Consumer consumer = ctx.getBean(SpringMQ_Consumer.class);
+        String message = (String) consumer.jmsTemplate.receiveAndConvert();
+        System.out.println("消费者受到消息：" + message);
+    }
+}
+```
+
+#### 3、整合之主题生产者消费者
+
+**spring 配置文件：**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--配置自动扫描的包-->
+    <context:component-scan base-package="com.hepingfly"></context:component-scan>
+
+    <!--配置生产者-->
+    <bean id="jmsFactory" class="org.apache.activemq.pool.PooledConnectionFactory" destroy-method="stop">
+        <property name="connectionFactory">
+            <!--真正可以产生 Connection 的 ConnectionFactory，由对应的 JMS 服务厂商提供-->
+            <bean class="org.apache.activemq.ActiveMQConnectionFactory">
+                <property name="brokerURL" value="tcp://192.168.148.148:61616"></property>
+            </bean>
+        </property>
+        <property name="maxConnections" value="100"></property>
+    </bean>
+    <!--这个是主题-->
+    <bean id="destinationTopic" class="org.apache.activemq.command.ActiveMQTopic">
+        <constructor-arg index="0" value="spring-active-topic"></constructor-arg>
+    </bean>
+
+    <!--Spring 提供的 JMS 工具类，它可以进行消息的发送和接收-->
+    <bean id="jmsTemplate" class="org.springframework.jms.core.JmsTemplate">
+        <property name="connectionFactory" ref="jmsFactory"></property>
+        <property name="defaultDestination" ref="destinationTopic"></property>
+        <property name="messageConverter">
+            <bean class="org.springframework.jms.support.converter.SimpleMessageConverter"></bean>
+        </property>
+    </bean>
+</beans>
+```
+
+**生产者代码：**
+
+```java
+@Service
+public class SpringMQ_Produce {
+
+    @Autowired
+    private JmsTemplate jmsTemplate;
+    public static void main(String[] args) {
+        ApplicationContext ctx = new ClassPathXmlApplicationContext("applicationContext.xml");
+        SpringMQ_Produce produce = ctx.getBean(SpringMQ_Produce.class);
+        produce.jmsTemplate.send(new MessageCreator() {
+            public Message createMessage(Session session) throws JMSException {
+                TextMessage textMessage = session.createTextMessage("****spring 和 activemq 整合");
+                return textMessage;
+            }
+        });
+        System.out.println("send task over...");
+    }
+```
+
+**消费者代码：**
+
+```java
+@Service
+public class SpringMQ_Consumer {
+    @Autowired
+    private JmsTemplate jmsTemplate;
+    public static void main(String[] args) {
+        ApplicationContext ctx = new ClassPathXmlApplicationContext("applicationContext.xml");
+        SpringMQ_Consumer consumer = ctx.getBean(SpringMQ_Consumer.class);
+        String message = (String) consumer.jmsTemplate.receiveAndConvert();
+        System.out.println("消费者受到消息：" + message);
+    }
+}
+```
+
+#### 4、整合之监听器配置
+
+在 spring 里面实现消费者不启动，直接通过配置监听完成
+
+spring 配置文件：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--配置自动扫描的包-->
+    <context:component-scan base-package="com.hepingfly"></context:component-scan>
+
+    <!--配置生产者-->
+    <bean id="jmsFactory" class="org.apache.activemq.pool.PooledConnectionFactory" destroy-method="stop">
+        <property name="connectionFactory">
+            <!--真正可以产生 Connection 的 ConnectionFactory，由对应的 JMS 服务厂商提供-->
+            <bean class="org.apache.activemq.ActiveMQConnectionFactory">
+                <property name="brokerURL" value="tcp://192.168.148.148:61616"></property>
+            </bean>
+        </property>
+        <property name="maxConnections" value="100"></property>
+    </bean>
+
+    <!--这个是主题-->
+    <bean id="destinationTopic" class="org.apache.activemq.command.ActiveMQTopic">
+        <constructor-arg index="0" value="spring-active-topic"></constructor-arg>
+    </bean>
+
+    <!--Spring 提供的 JMS 工具类，它可以进行消息的发送和接收-->
+    <bean id="jmsTemplate" class="org.springframework.jms.core.JmsTemplate">
+        <property name="connectionFactory" ref="jmsFactory"></property>
+        <property name="defaultDestination" ref="destinationTopic"></property>
+        <property name="messageConverter">
+            <bean class="org.springframework.jms.support.converter.SimpleMessageConverter"></bean>
+        </property>
+    </bean>
+
+    <!--配置监听程序-->
+    <bean id="jmscontainer" class="org.springframework.jms.listener.DefaultMessageListenerContainer">
+        <property name="connectionFactory" ref="jmsFactory"></property>
+        <property name="destination" ref="destinationTopic"></property>
+        <property name="messageListener" ref="myMessageListener"></property>
+    </bean>
+</beans>
+```
+
+**监听器类：**
+
+```java
+@Component
+public class MyMessageListener implements MessageListener {
+    public void onMessage(Message message) {
+        if (message != null && message instanceof TextMessage) {
+            TextMessage textMessage = (TextMessage) message;
+            try {
+                System.out.println(textMessage.getText());
+            } catch (JMSException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+
+**生产者代码：**
+
+```java
+@Service
+public class SpringMQ_Produce {
+
+    @Autowired
+    private JmsTemplate jmsTemplate;
+    public static void main(String[] args) {
+        ApplicationContext ctx = new ClassPathXmlApplicationContext("applicationContext.xml");
+        SpringMQ_Produce produce = ctx.getBean(SpringMQ_Produce.class);
+        produce.jmsTemplate.send(new MessageCreator() {
+            public Message createMessage(Session session) throws JMSException {
+                TextMessage textMessage = session.createTextMessage("****spring 和 activemq 整合");
+                return textMessage;
+            }
+        });
+        System.out.println("send task over...");
+    }
+```
+
+**消费者代码：**
+
+```java
+@Service
+public class SpringMQ_Consumer {
+    @Autowired
+    private JmsTemplate jmsTemplate;
+    public static void main(String[] args) {
+        ApplicationContext ctx = new ClassPathXmlApplicationContext("applicationContext.xml");
+        SpringMQ_Consumer consumer = ctx.getBean(SpringMQ_Consumer.class);
+        String message = (String) consumer.jmsTemplate.receiveAndConvert();
+        System.out.println("消费者受到消息：" + message);
+    }
+}
+```
+
+因为是主题，所以一般我们先启动消费者后启动生产者，但是我配置了监听器，所以就算我消费者不启动，也能监听到生产者发送消息。
+
+### 七、SpringBoot 整合 ActiveMQ
+
+#### 1、整合之队列生产者
+
+① **pom.xml**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>2.1.5.RELEASE</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.hepingfly.springboot.activemq</groupId>
+	<artifactId>activemq_produce</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>activemq_produce</name>
+	<description>Demo project for Spring Boot</description>
+
+	<properties>
+		<java.version>1.8</java.version>
+	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-activemq</artifactId>
+			<version>2.1.5.RELEASE</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+</project>
+```
+
+② **application.yml**
+
+```yaml
+server:
+  port: 7777
+spring:
+  activemq:
+    broker-url: tcp://192.168.148.148:61616 # activemq 服务器地址
+    user: admin
+    password: admin
+  jms:
+    pub-sub-domain: false    # false 表示使用队列, true 表示使用主题
+
+# 自己定义队列名称
+myqueue: boot-activemq-queue
+```
+
+③ **配置 bean**
+
+```java
+@Component
+@EnableJms   // 开启 JMS 功能
+public class ConfigBean {
+
+    @Value("${myqueue}")
+    private String myQueue;
+
+    @Bean
+    public Queue queue() {
+        return new ActiveMQQueue(myQueue);
+    }
+}
+```
+
+④ **生产者发送消息**
+
+```java
+@Component
+public class Queue_Produce {
+
+    @Autowired
+    private JmsMessagingTemplate jmsMessagingTemplate;
+
+    @Autowired
+    private Queue queue;
+
+    public void sendMsg() {
+        jmsMessagingTemplate.convertAndSend(queue,"hello shp");
+    }
+
+}
+```
+
+⑤ **spring 主程序类**
+
+```java
+@SpringBootApplication
+public class ActivemqProduceApplication {
+	public static void main(String[] args) {
+		SpringApplication.run(ActivemqProduceApplication.class, args);
+	}
+}
+```
+
+⑦ 单元测试类
+
+```java
+@SpringBootTest(classes = ActivemqProduceApplication.class)
+@RunWith(SpringJUnit4ClassRunner.class)
+@WebAppConfiguration
+public class QueueTest {
+
+    @Autowired
+    private Queue_Produce queue_produce;
+
+    @Test
+    public void testSend(){
+        queue_produce.sendMsg();
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

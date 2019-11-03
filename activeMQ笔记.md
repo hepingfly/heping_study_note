@@ -1370,9 +1370,53 @@ public class QueueTest {
 }
 ```
 
+#### 2、整合之队列生产者间隔定投
 
+要求每隔 3 秒钟往 MQ 推送消息
 
+步骤：
 
+① 修改生产者 Queue_Produce ，新增定时投递方法
+
+```java
+@Component
+public class Queue_Produce {
+
+    @Autowired
+    private JmsMessagingTemplate jmsMessagingTemplate;
+    @Autowired
+    private Queue queue;
+
+    public void sendMsg() {
+        jmsMessagingTemplate.convertAndSend(queue,"hello shp");
+    }
+
+    /**
+     * 间隔 3 秒钟往 MQ 中推送消息
+     */
+    @Scheduled(fixedDelay = 3000)
+    public void sendMsgScheduled() {
+        jmsMessagingTemplate.convertAndSend(queue,"hello shp");
+    }
+}
+```
+
+② 修改主启动类
+
+```java
+@SpringBootApplication
+@EnableScheduling       // 主启动类上面要开启定时注解 @Scheduled 的使用
+public class ActivemqProduceApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(ActivemqProduceApplication.class, args);
+	}
+}
+```
+
+③
+
+其他步骤同上面生产者步骤
 
 
 

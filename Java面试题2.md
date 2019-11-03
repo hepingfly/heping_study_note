@@ -2889,6 +2889,104 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.161-b12, mixed mode)
 
 ![并行收集器](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E5%B9%B6%E8%A1%8C%E6%94%B6%E9%9B%86%E5%99%A8.png)
 
+#### 8、ParallelOld收集器
+
+> ParallelOld 收集器是 Parallel Scavenge 的老年代版本，使用多线程的标记-整理算法，Parallel Old 收集器在 JDK1.6 才开始提供
+>
+> 在 JDK1.6 之前，新生代使用 ParallelScavenge 收集器只能搭配老年代的 Serial Old 收集器，只能保证新生代的吞吐量优先，无法保证整体吞吐量。在 JDK1.6 之前（Parallel Scavenge + Serial Old）
+>
+> Parallel Old 正是为了在老年代同样提供吞吐量优先的垃圾收集器，如果系统对吞吐量要求比较高，JDK1.8 后可以优先考虑新生代 Parallel Scavenge 和老年代 Parallel Old 收集器的搭配策略。在 JDK1.8 以后（Parallel Scavenge + Parallel Old）
+>
+> **对应 JVM 参数：**
+>
+> `-XX:+UseParallelOldGC `
+>
+> 使用 Parallel Old 收集器，设置该参数后，新生代Parallel + 老年代Parallel Old
+
+#### 9、CMS 收集器
+
+> CMS收集器（Concurrent Mark Sweep：并发标记清除）：是一种以获取最短回收停顿时间为目标的收集器。
+>
+> 适合应用在互联网站或者 B/S 系统的服务器上，这类应用尤其重视服务器的响应速度，希望系统停顿时间最短。CMS 非常适合堆内存大，CPU 核数多的服务器端应用，也是 G1 出现之前大型应用的首选服务器。
+>
+> Concurrent Mark Sweep 并发标记清除，并发收集，低停顿，并发指的是与用户线程一起执行。
+>
+> **对应 JVM 参数：**
+>
+> `-XX:+UseConcMarkSweepGC`
+>
+> 开启该参数后会自动将 `-XX:+UseParNewGC` 打开
+>
+> 开启该参数后，使用 ParNew（Young区用）+ CMS（Old区用）+ Serial Old 收集器组合，Serial Old 将作为 CMS 出错的后备处理器。
+
+![并发标记清除收集器](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-%E9%9D%A2%E8%AF%95%E9%A2%98/%E5%B9%B6%E5%8F%91%E6%A0%87%E8%AE%B0%E6%B8%85%E9%99%A4%E6%94%B6%E9%9B%86%E5%99%A8.png)
+
+**并发标记清除 4 步过程：**
+
+> 1. 初始标记（CMS initial mark）
+>    - 只是标记一下 GC Roots 能直接关联的对象，速度很快，仍然需要暂停所有的工作线程。
+> 2. 并发标记（CMS concurrent mark）和用户线程一起
+>    - 进行 GC Roots 跟踪的过程，和用户线程一起工作，不需要暂停工作线程。主要是标记过程，标记全部对象。
+> 3. 重新标记（CMS Remark）
+>    - 为了修正在并发标记期间，因用户程序继续运行而导致标记产生变动的那一部分对象的标记记录，仍然需要暂停所有的工作线程。
+>    - 因为并发标记时，用户线程依然运行，所以在正式清理前需要做一次修正
+> 4. 并发清除（CMS concurrent sweep）和用户线程一起
+>    - 清除 GC Roots 不可达对象，和用户线程一起工作，不需要暂停工作线程。基于标记结果，直接清理对象。
+>    - 由于耗时最长的并发标记和并发清除过程中，垃圾收集线程可以和用户一起并发工作，所以总体上来看 CMS 收集器的内存回收和用户线程是一起并发的执行。
+
+**并发标记清除优缺点：**
+
+> **优点：**
+>
+> - 并发收集，低停顿
+>
+> **缺点：**
+>
+> - 并发执行，对 CPU 资源压力大
+>   - 由于并发进行，CMS 收集线程与应用程序线程会同时增加对堆内存的占用，也就是说，CMS 必须要在老年代堆内存用尽之前完成垃圾回收，否则 CMS 回收失败时，将处罚担保机制，串行老年代收集器将会以 STW 的方式进行一次 GC ，从而造成较大停顿时间
+> - 采用的标记清除算法会导致大量的内存碎片
+>   - 标记清除算法无法整理内存碎片，老年代空间会随着应用时长被逐步耗尽，最后将不得不通过担保机制对堆内存进行压缩。CMS 也提供了参数 `-XX:CMSFullGCsBeForeCompaction` （默认 0，即每次都进行内存整理）来指定多少次 CMS 收集之后，进行一次压缩的 Full GC
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -1352,7 +1352,7 @@ public class ActivemqProduceApplication {
 }
 ```
 
-⑦ 单元测试类
+⑥单元测试类
 
 ```java
 @SpringBootTest(classes = ActivemqProduceApplication.class)
@@ -1414,15 +1414,256 @@ public class ActivemqProduceApplication {
 }
 ```
 
-③
+③其他步骤同上面生产者步骤
 
-其他步骤同上面生产者步骤
+#### 3、整合之队列消费者
 
+① **pom.xml**
 
+同生产者。
 
+② **application.yml**
 
+```yaml
+server:
+  port: 8888
+spring:
+  activemq:
+    broker-url: tcp://192.168.148.148:61616 # activemq 服务器地址
+    user: admin
+    password: admin
+  jms:
+    pub-sub-domain: false    # false 表示使用队列, true 表示使用主题
 
+# 自己定义队列名称
+myqueue: boot-activemq-queue
+```
 
+③**消费者通过监听的方式消费消息**
+
+```java
+@Component
+public class Queue_Consumer {
+    @JmsListener(destination = "${myqueue}")
+    public void receive(TextMessage textMessage) throws JMSException {
+        System.out.println("消费者受到消息：" + textMessage.getText());
+    }
+}
+```
+
+④ **spring 主程序类**
+
+```java
+@SpringBootApplication
+public class ActivemqConsumerApplication {
+	public static void main(String[] args) {
+		SpringApplication.run(ActivemqConsumerApplication.class, args);
+	}
+}
+```
+
+#### 4、整合之主题生产者
+
+① **pom.xml**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>2.1.5.RELEASE</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.hepingfly.springboot.activemq</groupId>
+	<artifactId>activemq_produce</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>activemq_produce</name>
+	<description>Demo project for Spring Boot</description>
+
+	<properties>
+		<java.version>1.8</java.version>
+	</properties>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-activemq</artifactId>
+			<version>2.1.5.RELEASE</version>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+</project>
+```
+
+② **application.yml**
+
+```yaml
+server:
+  port: 7777
+spring:
+  activemq:
+    broker-url: tcp://192.168.148.148:61616 # activemq 服务器地址
+    user: admin
+    password: admin
+  jms:
+    pub-sub-domain: true    # false 表示使用队列, true 表示使用主题
+
+# 自己定义主题名称
+mytopic: boot-activemq-topic
+```
+
+③ **配置 bean**
+
+```java
+@Component
+public class ConfigBean {
+    @Value("${mytopic}")
+    private String topicName;
+
+    @Bean
+    public Topic topic() {
+        return new ActiveMQTopic(topicName);
+    }
+}
+```
+
+④ **生产者发送消息**
+
+```java
+@Component
+public class Topic_Produce {
+
+    @Autowired
+    private JmsMessagingTemplate jmsMessagingTemplate;
+
+    @Autowired
+    private Topic topic;
+
+    /**
+     * 使用了这个注解，每隔 3 秒钟，生产者就会自动产生一条主题
+     */
+    @Scheduled(fixedDelay = 3000)
+    public void productTopic() {
+        jmsMessagingTemplate.convertAndSend(topic, UUID.randomUUID().toString().substring(0,6));
+    }
+}
+```
+
+⑤ **spring 主程序类**
+
+```java
+/**
+ * 使用了 @Scheduled 注解，在主启动类上就必须标上 @EnableScheduling
+ */
+@SpringBootApplication
+@EnableScheduling
+public class TopicProduceApplication {
+	public static void main(String[] args) {
+		SpringApplication.run(TopicProduceApplication.class, args);
+	}
+}
+```
+
+#### 5、整合之主题消费者
+
+① **pom.xml**
+
+同生产者。
+
+② **application.yml**
+
+```yaml
+server:
+  port: 6666
+spring:
+  activemq:
+    broker-url: tcp://192.168.148.148:61616 # activemq 服务器地址
+    user: admin
+    password: admin
+  jms:
+    pub-sub-domain: true    # false 表示使用队列, true 表示使用主题
+
+# 自己定义主题名称
+mytopic: boot-activemq-topic
+```
+
+③**消费者通过监听的方式消费消息**
+
+```java
+@Component
+public class Topic_Consumer {
+
+    @JmsListener(destination = "${mytopic}")
+    public void receive(TextMessage textMessage) {
+        try {
+            System.out.println("消费者收到的订阅主题：" + textMessage.getText());
+        } catch (JMSException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+④ **spring 主程序类**
+
+```java
+@SpringBootApplication
+public class ActivemqConsumerApplication {
+	public static void main(String[] args) {
+		SpringApplication.run(ActivemqConsumerApplication.class, args);
+	}
+}
+```
+
+### 八、ActiveMQ 传输协议
+
+#### 1、activeMQ传输协议简介
+
+activeMQ 支持的 client-broker 通讯协议有：TCP、NIO、UDP、SSL、Http、VM
+
+其中配置 Transport Connector 的文件在 activeMQ 安装目录的 `conf/activemq.xml` 中
+
+```xml
+ <transportConnectors>
+            <!-- DOS protection, limit concurrent connections to 1000 and frame size to 100MB -->
+            <transportConnector name="openwire" uri="tcp://0.0.0.0:61616?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+            <transportConnector name="amqp" uri="amqp://0.0.0.0:5672?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+            <transportConnector name="stomp" uri="stomp://0.0.0.0:61613?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+            <transportConnector name="mqtt" uri="mqtt://0.0.0.0:1883?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+            <transportConnector name="ws" uri="ws://0.0.0.0:61614?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+</transportConnectors>
+
+```
+
+> 在上面的配置信息中，
+>
+> URI 描述信息的头部都是采用协议名称，如：
+>
+> 描述 amqp 协议的监听端口时，采用的 URI 描述格式为：`ampq://…...`
+>
+> 描述 stomp 协议的监听端口时，采用的 URI 描述格式为：`stomp://…...`
+>
+> 唯独在进行 openwire 协议描述时，URI 采用的是 `tcp://……`   **这是因为 activeMQ 中默认的消息协议就是 openwire**
 
 
 

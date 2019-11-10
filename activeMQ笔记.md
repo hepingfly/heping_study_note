@@ -1665,6 +1665,93 @@ activeMQ 支持的 client-broker 通讯协议有：TCP、NIO、UDP、SSL、Http�
 >
 > 唯独在进行 openwire 协议描述时，URI 采用的是 `tcp://……`   **这是因为 activeMQ 中默认的消息协议就是 openwire**
 
+#### 2、activeMQ 传输协议种类
+
+1）、`Transmission Control Protocol(TCP 默认)`
+
+> - 这是默认的 Broker（activeMQ 消息服务器的一个实例） 配置，TCP 的 client 监听端口 61616
+> - 在网络传输数据前，必须要序列化数据，消息是通过一个叫 wire protocol 的来序列化成字节流。默认情况下 ActiveMQ 把 wire protocol 叫做 openWire ，它的目的是促使网络上的数据快速交互
+> - TCP 连接的 URI 形式如：`tcp://hostname:port?key=value&key=value` ，后面的参数是可选的
+
+2）、`New I/O API Protocol（NIO）`
+
+> - NIO 协议和 TCP 协议类似但 NIO 更侧重于底层的访问操作。它允许开发人员对同一资源有更多的 client 调用和服务端有更多的负载
+> - 适合使用 NIO 协议使用的场景
+>   - 可能有大量的 client 去连接到 Broker 上，一般情况下，大量的 Client 去连接 Broker 是被操作系统的线程所限制的。因此，NIO 的实现比 TCP 需要更少的线程去运行，所以建议使用 NIO 协议
+>   - 可能对于 Broker 有一个很迟钝的网络传输，NIO 比 TCP 提供更好的性能
+> - NIO 连接的 URI 形式：`nio://hostname:port?key=value`
+
+#### 3、activeMQ 传输协议之 NIO
+
+① 修改 activeMQ 配置文件 activemq.xml 文件
+
+```xml
+<!-- 在配置文件中增加如下配置 -->
+<transportConnectors>
+     <transportConnector name="nio" uri="nio://0.0.0.0:61618?trace=true"/>
+</transportConnectors>
+```
+
+② Java 编码修改
+
+```java
+private static final String ACTIVE_URL = "nio://192.168.148.141:61618";
+
+// 把连接协议和端口修改一下，其他代码和之前保持一致
+```
+
+### 九、ActiveMQ 消息存储和持久化
+
+#### 1、activeMQ 消息持久化简介
+
+> 为了避免意外宕机以后丢失信息，需要做到重启后可以恢复消息队列，消息系统一般都会采用持久化机制。
+>
+> activeMQ 消息持久化机制有 JDBC、 AMQ、KahaDB、LevelDB，无论使用哪种持久化方式，消息的存储逻辑都是一致的
+>
+> 就是在发送者将消息发送出去后，消息中心首先将消息存储到本地数据文件，内存数据库或者远程数据库等再试图将消息发送给接收者，成功则将消息从存储中删除，失败则继续尝试发送。
+>
+> 消息中心启动以后首先要检查指定的存储位置，如果有未发送成功的消息，则需要把消息发送出去。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

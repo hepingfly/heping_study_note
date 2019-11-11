@@ -1712,6 +1712,74 @@ private static final String ACTIVE_URL = "nio://192.168.148.141:61618";
 >
 > 消息中心启动以后首先要检查指定的存储位置，如果有未发送成功的消息，则需要把消息发送出去。
 
+#### 2、持久化机制之 AMQ 和 KahaDB
+
+**1）、AMQ Message Store**
+
+> AMQ 是一种文件存储形式，它具有写入速度快和容易恢复的特点。消息存储在一个个文件中，文件的默认大小为 32M ，当一个存储文件中的消息已经全部被消费，那么这个文件将被标识为可删除，在下一个清除阶段，这个文件被删除。**AMQ 适用于 ActiveMQ5.3 之前的版本。**
+
+**2）、KahaDB 消息存储**
+
+> - 基于日志文件，从 ActiveMQ5.4 开始默认的持久化插件
+>
+
+activeMQ5.4 之后默认使用 KahaDB 进行存储。这点可以通过 activeMQ 的配置文件看到：
+
+```xml
+<persistenceAdapter>
+    <kahaDB directory="${activemq.data}/kahadb"/>
+</persistenceAdapter>
+
+<!-- 
+通过这里可以发现，activemq 使用的持久化适配器是 kahaDB
+此外从 activemq 的目录页可以发现，apache-activemq-5.15.9/data/kahadb   
+它使用的是 kahadb 进行消息存储
+-->
+```
+
+#### 3、KahaDB 的存储原理
+
+**1）、KahaDB 说明**
+
+> KahaDB 是目前默认的存储方式，可用于任何场景，提高了性能和恢复能力。对于消息存储使用一个事务日志和仅仅用一个索引文件来存储它所有的地址。
+>
+> KahaDB 是一个专门针对消息持久化的解决方案，它对典型的消息使用模式进行了优化。数据被追加到 data logs 中，当不在需要 log 文件中的数据的时候，log 文件会被丢弃。
+
+**2）、KahaDB 的存储原理**
+
+```
+[root@hadoop1 kahadb]# pwd
+/opt/apache-activemq-5.15.9/data/kahadb
+[root@hadoop1 kahadb]# ll
+总用量 1840
+-rw-r--r--. 1 root root 33554432 11月  5 22:24 db-1.log
+-rw-r--r--. 1 root root   294912 11月  5 22:51 db.data
+-rw-r--r--. 1 root root       21 11月  5 22:51 db.free
+-rw-r--r--. 1 root root   160048 11月  5 22:51 db.redo
+-rw-r--r--. 1 root root        8 11月  5 21:54 lock
+```
+
+> kahaDB 在消息保存目录中只有 4 类文件和一个  lock，跟 ActiveMQ 的其他几种文件存储引擎相比这就非常简洁了。
+>
+> - `db-number.log`
+>   - kahaDB 存储消息到预定义大小的数据记录文件中，文件命名为 db-number.log 。当数据文件已满时，一个新的文件会随之创建，number 数值也会随之递增，它随着消息数量的增多，如每 32M 一个文件，文件名按照数字进行编号，如：db-1.log、db-2.log 。当不在有引用到数据文件中的任何消息时，文件会被删除或归档。
+> - `db-data`
+>   - 该文件包含了持久化的 BTree 索引，索引了消息数据记录中的消息，它是消息的索引文件，本质上是 B-Tree（B树），使用 B-Tree 作为索引指向 db-number.log 里面存储的消息。
+> - `db.free`
+>   - 当前 db.data 文件里面哪些页面是空闲的，文件具体内容是所有空闲页的 ID，方便后面建索引的时候先从空闲页开始建，保证索引的连续性，没有碎片。
+> - `db.redo`
+>   - 用来进行消息恢复，如果 KahaDB 消息存储在强制退出后启动，用于恢复 BTree 索引。
+> - lock
+>   - 文件锁，表示当前获得 kahadb 读写权限的 broker
+
+
+
+
+
+
+
+
+
 
 
 

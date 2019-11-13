@@ -1772,6 +1772,161 @@ activeMQ5.4 之后默认使用 KahaDB 进行存储。这点可以通过 activeMQ
 > - lock
 >   - 文件锁，表示当前获得 kahadb 读写权限的 broker
 
+#### 4、持久化机制之 JDBC 配置 mysql
+
+**步骤：**
+
+1）、添加 mysql 数据库驱动到 lib 文件夹
+
+```
+[root@hadoop1 lib]# pwd
+/opt/apache-activemq-5.15.9/lib
+
+将 mysql 驱动放到这个 lib 包下面
+```
+
+2）、jdbcPersistenceAdapter 配置
+
+在  `apache-activemq-5.15.9/conf` 路径下修改 activemq.xml 配置文件
+
+```xml
+<!-- 修改前 -->
+<persistenceAdapter>
+     <kahaDB directory="${activemq.data}/kahadb"/>
+</persistenceAdapter>
+
+<!-- 修改后 -->
+<persistenceAdapter> 
+  <jdbcPersistenceAdapter dataSource="#my-ds"/> 
+</persistenceAdapter>
+
+<!-- 
+datasource 指定将要引用的持久化数据库的 bean 的名称
+createTablesOnStartup  是否在启动的时候创建数据表，默认值是 true.这样每次启动就会去创建数据表了，一般是第一次启动的时候设置为 true之后改成 false 
+-->
+```
+
+3）、数据库连接池配置
+
+```xml
+  <bean id="mysql-ds" class="org.apache.commons.dbcp2.BasicDataSource" destroy-method="close"> 
+    <property name="driverClassName" value="com.mysql.jdbc.Driver"/> 
+    <property name="url" value="jdbc:mysql://localhost/activemq?relaxAutoCommit=true"/> 
+    <property name="username" value="activemq"/> 
+    <property name="password" value="activemq"/> 
+    <property name="poolPreparedStatements" value="true"/> 
+  </bean> 
+
+<!-- 这里的数据源你自己也可以换，比如换成 c3p0 或者 druid，换数据库你同时也要把相关的依赖 jar 包放到 lib 目录下 -->
+```
+
+4）、mysql 建库建表
+
+```
+1、建一个名为 activemq 的数据库
+2、这样就会在这个库下面自动生成三张表
+ACTIVEMQ_MSGS    消息表, queue 和 topic 都存在里面
+ACTIVEMQ_ACKS    存储持久订阅的信息。如果是持久化 topic ,订阅者和服务器的订阅关系在这个表保存
+ACTIVEMQ_LOCK     在集群环境中才有用，只有一个 Broker 可以获得消息，称为 Master Broker,其他的只能作为备份等待 Master Broker 不可用，才能称为下一个 Master Broker。这个表用于记录哪个 Broker 是当前的 Master Broker
+```
+
+这样配置以后，不管你使用队列还是主题，只要配置了持久化 `producer.setDeliveryMode(DeliveryMode.PERSISTENT);`   你发送消息到 activemq 的同时也会把消息持久化到 mysql 数据库，这样就保证了 activemq 消息的高可用。
+
+**说明：**
+
+> 如果是 queue ，在没有消费者消费的情况下会将消息保存到 activemq_msgs 表中，只要有任意一个消费者已经消费过了，消费之后这些消息将会立即被删除。
+>
+> 如果是 topic ，一般是先启动消费订阅然后再生产的情况下会将消息保存到 activemq_acks
+
+**开发过程中可能存在的坑：**
+
+> 在配置关系型数据库作为 activeMQ 的持久化存储方案时，下面几点需要注意：
+>
+> - 数据库 jar 包
+>   - 记得把需要使用到的相关 jar 文件放置到 activeMQ 安装路径下的 lib 目录。（mysql-jdbc 驱动的 jar 包和对应的数据库连接池 jar，如果连接池是 dbcp ，直接放入驱动即可）
+> - createTablesOnStartup 属性
+>   - 在 jdbcPersistenceAdapter 标签中设置了 createTablesOnStartup 属性为 True 时，在第一次启动 activeMQ 时，activeMQ 服务节点会自动创建所需要的数据表。启动完成后可以去掉这个属性，或者更改 createTablesOnStartup 属性为 false
+> - 下划线问题
+>   - `java.lang.IllegalStateException:BeanFactory not initialized or already closed` 出现这个异常是因为你的操作系统的机器名中有 `_` 符号。更改机器名，并且重启后即可解决问题。
+
+#### 5、JDBC Message store with ActiveMQ Journal
+
+**说明：**
+
+> 这种方式克服了 JDBC Store 的不足，JDBC 每次消息过来，都需要去写库和读库。
+>
+> ActiveMQ Journal，使用高速缓存写入技术（就是在 activemq 和 mysql 之间挡一层），大大提高了性能。
+>
+> 当消费者的消费速度能够及时跟上生产者消息的生产速度时，journal 文件能够大大减少需要写入到 DB 中的消息。
+>
+> 举个例子：
+>
+> 生产者生产了 1000 条消息，这 1000 条消息会保存到 journal 文件，如果消费者的消费速度很快的情况下，在 journal 文件还没有同步到 DB 之前，消费者已经消费了 90% 以上的消息，那么这时候只需要同步剩余的 10% 的消息到 DB 。如果消费者的消费速度很慢，这个时候 journal 文件可以使消息以批量的方式写到 DB
+
+如何配置：
+
+在  `apache-activemq-5.15.9/conf` 路径下修改 activemq.xml 配置文件
+
+```xml
+<!-- 注释掉原有的 persistenceAdapter 标签 -->
+<persistenceFactory>
+	<journalPersistenceAdapterFactory journalLogFiles="4" journalLogFileSize="32768" useJournal="true" useQuickJournal="true" dataSource="#mysql-ds" dataDirectory="activemq-data">
+    </journalPersistenceAdapterFactory>
+</persistenceFactory>
+```
+
+#### 6、activeMQ 持久化机制总结
+
+> **持久化消息主要指：**
+>
+> MQ 所在的服务器 down 了，消息不会丢失的机制
+>
+> **持久化机制演化过程：**
+>
+> 从最初的 AMQ Message Store 方案到 ActiveMQ V4 版本中推出的 High performance journal （高性能事务支持）附件，并且同步推出了关于关系型数据库的存储方案。ActiveMQ5.3 版本中又推出了对 KahaDB 的支持（5.4 版本后成为 ActiveMQ 默认的持久化方案），后来 ActiceMQ5.8 版本开始支持 LevelDB ，到现在，V5.9+ 版本提供了标准的 Zookeeper + LevelDB 集群化方案。
+>
+> **ActiceMQ 的消息持久化机制有：**
+>
+> AMQ                 基于日志文件
+>
+> KahaDB            基于日志文件，从 ActiveMQ5.4 开始默认的持久化方案
+>
+> JDBC                基于第三方数据库
+>
+> LevelDB            基于文件的本地数据库存储，从  ActiveMQ5.8 版本之后又推出了 LevelDB 的持久化引擎性能高于 KahaDB
+>
+> Replicated LevelDB Store            从  ActiveMQ5.9   提供了基于 LevelDB 和 Zookeeper 的数据复制方式，用于 Master-slave 方式的首选数据复制方案
+>
+> **无论使用哪种持久化方式，消息的存储逻辑都是一致的：**
+>
+> 就是在发送者将消息发送出去之后，消息中心首先将消息存储到本地数据文件、内存数据库或者远程数据库等，然后试图将消息发送给接受者，发送成功则将消息从存储中删除，失败则继续尝试。消息中心启动以后首先要检查指定的存储位置，如果有未发送成功的消息，则需要把消息发送出去。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

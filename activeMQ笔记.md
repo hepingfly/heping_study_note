@@ -1901,6 +1901,263 @@ ACTIVEMQ_LOCK     在集群环境中才有用，只有一个 Broker 可以获得
 >
 > 就是在发送者将消息发送出去之后，消息中心首先将消息存储到本地数据文件、内存数据库或者远程数据库等，然后试图将消息发送给接受者，发送成功则将消息从存储中删除，失败则继续尝试。消息中心启动以后首先要检查指定的存储位置，如果有未发送成功的消息，则需要把消息发送出去。
 
+### 十、ActiveMQ 多节点集群
+
+####  1、zookeeper 和 Replicated LevelDB 集群原理
+
+我们引入消息队列之后该如何保证它的高可用性呢？
+
+> 我们可以基于 Zookeeper 和 LevelDB 搭建 ActiveMQ 集群。集群仅提供主备方式的高可用集群功能，避免单点故障。
+>
+> 注：
+>
+> 从 ActiveMQ5.9 开始，ActiveMQ 的集群实现方式取消了传统的 Master-Slave 方式，增加了基于 Zookeeper + LevelDB 的 Master-Slave 方式，从 5.9 版本后也是官网的推荐。
+
+**zookeeper+replicatedLevelDB运行原理图**
+
+![zookeeper+replicatedLevelDB运行原理图](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-activemq/zookeeper%2BreplicatedLevelDB%E8%BF%90%E8%A1%8C%E5%8E%9F%E7%90%86.png)
+
+**原理说明：**
+
+> 使用 zookeeper 集群注册所有的 ActiveMQ Broker 但是只有其中一个 Broker 可以提供服务，它将被视为 Master，其他的Broker 处于待机状态被视为 Slave
+>
+> 如果 Master 因故障而不能提供服务，zookeeper 会从 slave 中选举出一个 Broker 来充当 Master。Slave 连接 Master 并同步他们的存储状态，Slave 不接受客户端的连接。所有的存储操作都将被复制到连接直 Master 的 Slaves。如果 Master 宕机得到了最新更新的 Slave 会成为 Master 。故障节点在恢复后会重新加入到集群中并连接 Master 进入 Slave 模式
+>
+> 所有需要同步的消息操作都将等待存储状态被复制到其他法定节点的操作完成才能完成。
+>
+> 所以如果你配置了 replicas=3，那么法定大小是 `(3/2)+1=2`   Master 将会存储并更新然后等待 `(2-1)=1`个Slave 存储和更新完成，才汇报 success。
+>
+> 有一个 node 要作为观察者存在。当一个新的 Master 被选中，你需要至少保障一个法定 node 在线以能够找到拥有最新状态的 node 。这个 node 才可以成为新的 Master
+>
+> 因此，推荐运行至少 3个 replica nodes 以防止一个 node 失败后服务中断
+
+#### 2、zookeeper 和 Replicated LevelDB集群部署规划说明
+
+**集群部署规划列表：**
+
+| 主机 | zookeeper集群端口 | AMQ集群 bind 端口            | AMQ消息 tcp 端口 | 管理控制台端口 | AMQ节点安装目录       |
+| ---- | ----------------- | ---------------------------- | ---------------- | -------------- | --------------------- |
+|      | 2191              | `bind="tcp://0.0.0.0:63631"` | 61616            | 8161           | /mq_cluster/mq_node01 |
+|      | 2192              | `bind="tcp://0.0.0.0:63632"` | 61617            | 8161           | /mq_cluster/mq_node02 |
+|      | 2193              | `bind="tcp://0.0.0.0:63633"` | 61618            | 8163           | /mq_cluster/mq_node03 |
+
+#### 3、zookeeper 和 Replicated LevelDB集群部署配置
+
+1）、创建 3 台 activemq 集群目录
+
+```sh
+mkdir activemq_cluster
+cp -r apache-activemq-5.15.9 activemq_cluster/mq_node01
+cp -r apache-activemq-5.15.9 activemq_cluster/mq_node02
+cp -r apache-activemq-5.15.9 activemq_cluster/mq_node03
+cd activemq_cluster/
+[root@hadoop1 activemq_cluster]# ll
+总用量 12
+drwxr-xr-x. 11 root root 4096 11月 16 14:00 mq_node01
+drwxr-xr-x. 11 root root 4096 11月 16 14:02 mq_node02
+drwxr-xr-x. 11 root root 4096 11月 16 14:03 mq_node03
+[root@hadoop1 activemq_cluster]# ll
+总用量 12
+drwxr-xr-x. 11 root root 4096 11月 16 14:00 mq_node01
+drwxr-xr-x. 11 root root 4096 11月 16 14:02 mq_node02
+drwxr-xr-x. 11 root root 4096 11月 16 14:03 mq_node03
+```
+
+2）、修改管理控制台端口
+
+```shell
+#mq_node01 全部默认不动
+#下面来修改 mq_node02 的管理控制台端口
+[root@hadoop1 conf]# cd /opt/activemq_cluster/mq_node02/conf
+[root@hadoop1 conf]# vim jetty.xml
+<bean id="jettyPort" class="org.apache.activemq.web.WebConsolePort" init-method="start">
+    <!-- the default port number for the web console -->
+    <property name="host" value="0.0.0.0"/>
+    <property name="port" value="8162"/>          # 这里修改为 8162
+</bean>
+
+#下面来修改 mq_node03 的管理控制台端口
+[root@hadoop1 conf]# cd /opt/activemq_cluster/mq_node03/conf
+[root@hadoop1 conf]# vim jetty.xml
+<bean id="jettyPort" class="org.apache.activemq.web.WebConsolePort" init-method="start">
+    <!-- the default port number for the web console -->
+    <property name="host" value="0.0.0.0"/>
+    <property name="port" value="8163"/>          # 这里修改为 8163
+</bean>
+```
+
+3）、hostname 名字映射
+
+```shell
+[root@hadoop1 mq_node03]# vim /etc/hosts
+192.168.148.141 heping
+```
+
+4）、activemq 集群配置
+
+① 3 个节点的 BrokerName 要求全部一致
+
+```shell
+# 先改第一台 mq 的 brokerName
+[root@hadoop1 conf]# cd /opt/activemq_cluster/mq_node01/conf
+[root@hadoop1 conf]# vim activemq.xml
+<broker xmlns="http://activemq.apache.org/schema/core" brokerName="hepingmq" dataDirectory="${activemq.data}">
+
+# 改第二台 mq 的 brokerName
+[root@hadoop1 conf]# cd /opt/activemq_cluster/mq_node02/conf
+[root@hadoop1 conf]# vim activemq.xml
+<broker xmlns="http://activemq.apache.org/schema/core" brokerName="hepingmq" dataDirectory="${activemq.data}">
+
+# 改第三台 mq 的 brokerName
+[root@hadoop1 conf]# cd /opt/activemq_cluster/mq_node03/conf
+[root@hadoop1 conf]# vim activemq.xml
+<broker xmlns="http://activemq.apache.org/schema/core" brokerName="hepingmq" dataDirectory="${activemq.data}">
+```
+
+② 3 个节点的持久化配置
+
+activemq 默认的持久化方案是 kahaDB ，现在我们要把它改成 levelDB
+
+```shell
+# 先配置第一台
+[root@hadoop1 conf]# vim /opt/activemq_cluster/mq_node01/conf/activemq.xml
+  <persistenceAdapter>
+    <replicatedLevelDB
+      directory="activemq-data"
+      replicas="3"
+      bind="tcp://0.0.0.0:63631"
+      zkAddress="localhost:2191,localhost:2192,localhost:2193"
+      sync="local_disk"
+      zkPath="/activemq/leveldb-stores"
+      hostname="heping"
+      />
+  </persistenceAdapter>
+  
+ # 配置第二台
+ [root@hadoop1 conf]# vim /opt/activemq_cluster/mq_node02/conf/activemq.xml
+  <persistenceAdapter>
+    <replicatedLevelDB
+      directory="activemq-data"
+      replicas="3"
+      bind="tcp://0.0.0.0:63632"
+      zkAddress="localhost:2191,localhost:2192,localhost:2193"
+      sync="local_disk"
+      zkPath="/activemq/leveldb-stores"
+      hostname="heping"
+      />
+  </persistenceAdapter>
+  
+   # 配置第三台
+ [root@hadoop1 conf]# vim /opt/activemq_cluster/mq_node03/conf/activemq.xml
+  <persistenceAdapter>
+    <replicatedLevelDB
+      directory="activemq-data"
+      replicas="3"
+      bind="tcp://0.0.0.0:63633"
+      zkAddress="localhost:2191,localhost:2192,localhost:2193"
+      sync="local_disk"
+      zkPath="/activemq/leveldb-stores"
+      hostname="heping"
+      />
+  </persistenceAdapter>
+```
+
+5）、修改各节点的消息端口
+
+```shell
+#mq_node01 全部默认不动
+#下面来修改 mq_node02 的消息端口
+[root@hadoop1 mq_node02]# vim /opt/activemq_cluster/mq_node02/conf/activemq.xml
+<transportConnector name="openwire" uri="tcp://0.0.0.0:61617?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+
+#下面来修改 mq_node03 的消息端口
+[root@hadoop1 mq_node03]# vim /opt/activemq_cluster/mq_node03/conf/activemq.xml
+<transportConnector name="openwire" uri="tcp://0.0.0.0:61618?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+
+```
+
+6）、按顺序启动 3 个 ActiveMQ 节点，到这步的前提是 zk 集群已经成功启动运行
+
+7）、zk 集群的节点状态说明
+
+> 3 台 zookeeper 集群你可以连接任何一台，使用命令 `./zkCli.sh -server 127.0.0.1:2191`
+>
+> 然后 `ls /`
+>
+> ```
+> ls /
+> [activemq,zookeeper]      会有一个 activemq 节点 
+>
+> ls /activemq/leveldb-stores
+> [00000000001,00000000002,00000000003 ]
+> ```
+>
+> **如何知道 3 台 activemq ，哪一台是 master ？**
+>
+> ```
+> 使用命令 get /activemq/leveldb-stores/00000000001
+> get /activemq/leveldb-stores/00000000002
+> get /activemq/leveldb-stores/00000000003
+>
+> 然后看三台节点存储的信息，如果 『elected』   这个属性值不为空，那么它就是 master
+> ```
+>
+> 
+
+#### 4、zookeeper 和 Replicated LevelDB集群故障迁移和验证
+
+**集群可用性测试：**
+
+> ActiveMQ 的客户端只能访问 Master 的 Broker，其他处于 Slave 的 Broker不能访问，所以客户端连接的 Broker 应该使用 failover 协议（失败转移）
+>
+> 当一个 ActiveMQ 节点挂掉或者一个 zookeeper 节点挂掉，ActiveMQ 服务依然正常运转，如果仅剩一个 ActiveMQ 节点，由于不能选举Master，所以 ActiveMQ 不能正常运行。
+>
+> 同样，如果 zookeeper 仅剩一个节点活动，不管 ActiveMQ 各节点存活，ActiveMQ 也不能正常提供服务。（ActiveMQ 集群的高可用，依赖于 zookeeper 集群的高可用）
+
+故障迁移和验证：
+
+> 3 台机器中的 ActiveMQ 只会有一个 MQ 可以被客户端连接使用，在测试时可以把 master 关掉，然后在重试客户端消息发送和消费还可以正常使用，则说明集群搭建正常
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -2118,6 +2118,132 @@ activemq 默认的持久化方案是 kahaDB ，现在我们要把它改成 level
 
 > 3 台机器中的 ActiveMQ 只会有一个 MQ 可以被客户端连接使用，在测试时可以把 master 关掉，然后在重试客户端消息发送和消费还可以正常使用，则说明集群搭建正常
 
+### 十一、高级特性
+
+#### 1、高级特性之异步投递
+
+**异步投递是什么？**
+
+> ActiveMQ 支持同步、异步两种发送的模式将消息发送到 broker，模式的选择对发送延时有巨大的影响。 producer 能达到怎样的产出率（产出率=发送数据总量/时间），主要受发送延时影响，使用异步发送可以显著提高发送的性能。
+>
+> **ActiveMQ 默认使用异步发送的模式**，除非明确指定使用同步发送的方式或者在未使用事务的前提下发送持久化消息，这两种情况都是同步发送的。
+>
+> **如果你没有使用事务，且发送的是持久化消息**，每一次发送都是同步发送的且会阻塞 producer 直到 broker 返回一个确认，表示消息已经被安全的持久化到磁盘。确认机制提供了消息安全的保障，但同时会阻塞客户端带来很大的延时。
+>
+> 很多高性能的应用，允许在失败的情况下有少量的数据丢失。如果你的应用满足这个特点，你可以使用异步来发送提高生产率，即使发送的是持久化的消息。
+>
+> 异步发送
+>
+> 它可以最大化 produce 端的发送效率。我们通常在发送消息量比较密集的情况下使用异步发送，它可以很大的提升 producer 性能，不过这也带来了额外的问题：
+>
+> 就是需要消耗更多的 client 端内存，同时也会导致 broker 端性能消耗增加
+>
+> 此外它不能有效确保消息发送成功。在 useAsyncSend=true 的情况下客户端需要容忍消息丢失的可能
+
+Java 代码中开启异步投递：
+
+```java
+// 第一种方式,直接发参数挂载 url 后面
+ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory("tcp://192.168.148.148:61616?jms.useAsyncSend=true");
+
+// 第二种方式
+ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory("tcp://192.168.148.148:61616);
+ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+        connectionFactory.setUseAsyncSend(true);
+```
+
+#### 2、异步发送如何确认发送成功
+
+> 异步发送丢失消息的场景是：
+>
+> 生产者设置 `UseAsyncSend=true` ，使用 `producer.send(msg)` 持续发送消息。由于消息不阻塞，生产者会认为所有 send 的消息均被成功发送至 MQ。如果 MQ 突然宕机，此时生产者端内存中尚未发送至 MQ 的消息都会丢失。
+>
+> 所以，正确的异步发送方法是**需要接收回调的**
+>
+> 同步发送和异步发送的区别在于：
+>
+> 同步发送等 send 不阻塞了就表示一定发送成功了。
+>
+> 异步发送需要接收回执并由客户端再判断一次是否发送成功。
+
+```java
+public class JmsProduce_AsyncSend {
+    private static final String ACTIVE_URL = "tcp://192.168.148.148:61616";
+    private static final String QUEUE_NAME = "queue01";
+
+    public static void main(String[] args) throws JMSException {
+        ActiveMQConnectionFactory connectionFactory = new ActiveMQConnectionFactory(ACTIVE_URL);
+        // 设置异步投递
+        connectionFactory.setUseAsyncSend(true);
+
+        Connection connection = connectionFactory.createConnection();
+        connection.start();
+
+        Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+        Queue queue = session.createQueue(QUEUE_NAME);
+
+        ActiveMQMessageProducer activeMQMessageProducer = (ActiveMQMessageProducer) session.createProducer(queue);
+
+        for (int i = 1; i <= 3; i++) {
+            TextMessage textMessage = session.createTextMessage("hello" + i);
+            textMessage.setJMSMessageID(UUID.randomUUID().toString() + "shp");
+            // 在这里我获取到每条消息的 msdId
+            final String msgId = textMessage.getJMSMessageID();
+            // activemq 发送完消息后会调用这个回调函数
+            activeMQMessageProducer.send(textMessage, new AsyncCallback() {
+                public void onSuccess() {
+                    // 在这里我就知道调用成功的 msgId 是多少
+                    System.out.println(msgId + "has been ok send");
+                }
+
+                public void onException(JMSException e) {
+                    // 在这里我知道调用失败的 msgId 是多少
+                    System.out.println(msgId + "has been fail to send");
+                }
+            });
+
+        }
+
+        activeMQMessageProducer.close();
+        session.close();
+        connection.close();
+        System.out.println("消息发送到 MQ 完成");
+    }
+}
+```
+
+#### 3、延迟投递和定时投递
+
+首先你需要在 activemq.xml 中配置 schedulerSupport 属性为 true
+
+**关于延迟投递和定时投递，有四大属性：**
+
+| Property name        | type   | description        |
+| -------------------- | ------ | ------------------ |
+| AMQ_SCHEDULED_DELAY  | long   | 延迟投递的时间     |
+| AMQ_SCHEDULED_PERIOD | long   | 重复投递的时间间隔 |
+| AMQ_SCHEDULED_REPEAT | int    | 重复投递次数       |
+| AMQ_SCHEDULED_CRON   | string | Cron 表达式        |
+
+```xml
+<!-- 开启定时投递,需要先在 activemq.xml 中配置一下 schedulerSupport -->
+<broker xmlns="http://activemq.apache.org/schema/core" brokerName="localhost" dataDirectory="${activemq.data}" schedulerSupport="true">
+</broker>
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

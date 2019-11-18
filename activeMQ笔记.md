@@ -2232,6 +2232,72 @@ public class JmsProduce_AsyncSend {
 </broker>
 ```
 
+#### 4、消费重试机制
+
+具体哪些情况会引起消息重发？
+
+> -  Client 用了 transactions 且在 session 中调用了 rollback()
+> - Client 用了 transactions 且在调用 commit() 之前关闭或者没有 commit
+> - Client 在 CLIENT_ACKNOWLEDGE 的传递模式下，在 session 中调用了 recover()
+
+消息重发的时间间隔和重发次数？
+
+> 重发的时间间隔：1秒钟
+>
+> 重发的次数：6次
+
+谈谈对有毒消息 Poison ACK 的理解
+
+> 一个消息被 redelivedred 超过默认的最大重发次数（默认是 6 次时），消费端会给 MQ 发送一个 「poison ack」表示这个消息有毒，告诉 broker 不要再发了。这个时候 broker 会把这个消息放到 DLQ（死信队列）
+
+#### 5、死信队列
+
+死信队列是什么？
+
+> ActiveMQ 中引入了死信队列（Dead Letter Queue）的概念。即一条消息再被重发了多次后（默认为重发 6 次 redeliveryCounter==6），将会被 ActiveMQ 移入死信队列。开发人员可以在这个 Queue 中查看和处理出错的信息，进行人工干预。
+
+#### 6、防止重复调用
+
+如何保证消息不被重复消费呢？
+
+> 网络延迟传输中，会造成在 MQ 进行重试，在重试过程中，可能会造成重复消费。
+>
+> 解决方式：
+>
+> ①
+>
+> 如果消息是做数据库的插入操作，给这个消息做一个唯一的主键，那么就算出现重复消费的情况，就会导致主键冲突，避免数据库出现脏数据。
+>
+> ②
+>
+> 准备一个第三方服务来做消费记录。以 redis 为例，给消息分配一个全局id，只要消费过该消息，将 `<id,message>`  以 K-V 形式写入 redis 。那消费者开始消费前，先去 redis 中查询有没有消费记录即可。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

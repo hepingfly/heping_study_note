@@ -3010,6 +3010,209 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.161-b12, mixed mode)
 > - G1 收集器里面将整个内存去都混合在一起了，但其本身依然在小范围内要进行年轻代和老年代的区分，保留了新生代和老年代，但他们不再是物理隔离的，而是一部分 Region 的集合且不需要 Region 是连续的，也就是说依然会采用不同的 GC 方式来处理不同的区域
 > - G1 虽然也是分代收集器，但整个内存分区不存在物理上的年轻代与老年代的区别，也不需要完全独立的 survivor 堆做复制准备。G1 只有逻辑上的分代概念，或者说每个分区都可能随 G1 的运行在不同代之间前后切换
 
+### 十、Linux 相关
+
+#### 1、Linux 命令
+
+生产环境服务器变慢，诊断思路和性能评估？
+
+> - 整机
+>
+>   - 使用 top 命令，查看系统性能
+>   - 你可以在使用 top 命令的时候按 1 键
+>
+> - cpu
+>
+>   - `vmstat -n 2 3`
+>
+>   - 一般 vmstat 工具的使用是通过两个数字参数来完成的，第一个参数是采样的时间间隔（单位：秒），第二个参数是采样的次数
+>
+>   - ```
+>     [root@droidmea-no config]# vmstat -n 2 3
+>     procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
+>      r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa st
+>      0  0 2047996 1675060 108476 10871552    0    0     0     8    0    0  2  0 98  0  0
+>      0  0 2047996 1674644 108476 10872872    0    0     0    26 3789 7286  1  0 99  0  0
+>      0  0 2047996 1673684 108476 10873608    0    0     0  2180 4845 10803  1  0 98  0  0
+>     ```
+>
+>   - procs 
+>
+>     - r ：运行和等待 CPU 时间片的进程数，原则上 1 核 CPU 的运行队列不要超过 2，整个系统的运行队列不能超过总核数的 2 倍，否则代表系统压力过大
+>     - b ：等待资源的进程数，比如正在等待磁盘I/O、网络I/O 等。
+>
+>   - cpu
+>
+>     - us ：用户进程消耗CPU 时间百分比，us 值高，用户进程消耗 CPU 时间多，如果长期大于 50%，优化程序
+>     - sy ：内核进程消耗的 CPU 时间百分比
+>     -  us + sy 参考值为 80%， 如果 us + sy 参考值大于 80%，说明可能存在 CPU 不足。
+>     - id ：处于空闲的 CPU 百分比
+>     - wa ：系统等待 IO 的 CPU 时间百分比
+>
+>   - 查看所有 cpu 核信息
+>
+>     - `mpstat -P ALL 2`
+>
+>   - 每个进程使用 cpu 的用量分解信息
+>
+>     - `pidstat -u 1 -p 进程编号`
+>
+> - 内存 free
+>
+>   - 应用程序可用内存数 ：   `free -h`     或者  `free -m` 
+>   - 查看单个进程使用内存比例
+>     - `pidstat -p 进程号 -r 采样间隔秒数`
+>
+> - 磁盘IO
+>
+>   - iostat     磁盘 I/O 性能评估      `iostat -xdk 2 3` 
+>   - 查看单个进程磁盘 I/O 情况
+>     - `pidstat -d 采样间隔秒数 -p 进程号`
+
+假如生产环境出现 CPU 占用过高，谈谈分析思路
+
+> - 先用 top 命令找出 CPU 占用最高的
+>
+> - ps -ef 或者 jps 进一步定位，得知是一个怎样的后台进程
+>
+> - 定位到具体线程或代码
+>
+>   - `ps -mp 进程id -o THREAD,tid,time`
+>
+>   - ```
+>     参数解释：
+>     -m:  显示所有的线程
+>     -p pid：进程使用 cpu 的时间
+>     -o：该参数后是用户自定义格式
+>     ```
+>
+>   - 将需要的**线程id** 转换为 16 进制格式（英文小写格式）
+>
+>     - 可以使用 `printf "%x\n" 线程id`         算出该线程id 对应的 16 进制数
+>     - 或者用程序员计算器也可以进行计算
+>
+> - `jstack 进程id |grep tid（16进制线程ID 小写英文）-A60`
+
+### 十一、github 使用
+
+#### 1、github 之 in 搜索
+
+> `xxx关键词 in:name 或 description 或 readme`
+>
+> - `xxx in:name`       项目名包含 xxx 的
+>
+>   - ```
+>     比如说我想搜一个秒杀系统，可以这么搜：
+>     seckill in:name              这样就可以把项目名中包含 seckill 的都搜出来
+>     ```
+>
+> - `xxx in:description`      项目描述中包含xxx 的
+>
+> - `xxx in:readme`                 项目的 readme 文件中包含 xxx 的 
+>
+> 上述搜索组合使用：
+>
+> ```
+> 比如说我想搜索项目名或者 readme 中包含秒杀的项目
+> seckill in:name,readme
+> ```
+>
+> 
+
+#### 2、github 之根据 stars 或 fork 数量关键词去查找
+
+> `xxx关键词 stars:>=`   
+>
+> `xxx关键词 forks:>=`   
+>
+> ```
+> 比如说我想查找 stars 大于等于 5000 的 springboot 项目，你可以这么写：
+> springboot stars:>=5000
+>
+> 比如说我想查找 forks 数量大于 500 的 springcloud 项目，你可以这么写：
+> springcloud forks:>500
+> ```
+>
+> 上述搜索组合使用：
+>
+> ```
+> 比如说我想查找 forks 数量在100 到 200 之间并且 stars 数量在 200 到 300 之间的 springboot 项目，你可以这么写：
+> springboot forks:100..200 stars:200..300
+> ```
+>
+> 
+
+#### 3、github 之 awesome 搜索
+
+> `awesome 关键字`
+>
+> 一般是用来收集学习、工具、书籍类相关项目
+>
+> ```
+> 如果你想要学习一个技术，可以在 github 上使用 awesome 关键字  去搜索
+> 比如说我想搜索优秀的 redis 相关项目，包括框架、教程等，你可以这么写：
+> awesome redis
+> ```
+>
+> 
+
+#### 4、github 之 #L数字
+
+高亮显示某一行代码
+
+> 高亮显示某一行代码
+>
+> - github地址后面紧跟  `#L要高亮显示的行号`
+>
+> - ```
+>   比如说我想高亮显示下面网页中的第 6 行代码：
+>   https://github.com/hepingfly/heping_DesignPattern/blob/master/src/com/hepingfly/bridge/Brand.java
+>
+>   那么地址就应该这么写：
+>   https://github.com/hepingfly/heping_DesignPattern/blob/master/src/com/hepingfly/bridge/Brand.java#L6
+>   ```
+>
+> 高亮显示多行代码
+>
+> - github地址后面紧跟   `#L要高亮显示的起始行号-L要高亮显示的结束行号`
+>
+> - ```
+>   比如说我想高亮显示下面网页中的第 6 行到第 10 行代码：
+>   https://github.com/hepingfly/heping_DesignPattern/blob/master/src/com/hepingfly/bridge/Brand.java
+>
+>   那么地址就应该这么写：
+>   https://github.com/hepingfly/heping_DesignPattern/blob/master/src/com/hepingfly/bridge/Brand.java#L6-L10
+>   ```
+>
+> - ​
+
+#### 5、github 之项目内搜索
+
+在 github 中进入一个仓库，然后按下 `t` 键，就可以在项目内进行搜索
+
+#### 6、github 搜索区域活跃用户
+
+> `location:地区`
+>
+> `language:语言`
+>
+> ```
+> 比如说我想搜索，地区是北京，方向是 Java 的用户，你可以这么写：
+> location:beijing language:Java
+> ```
+>
+> 
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -71,6 +71,591 @@ SpringCloud 基于 SpringBoot 提供了一整套微服务解决方案，包括�
 
 > SpringCloud = 分布式微服务架构下的一站式解决方案，是各个微服务架构落地技术的集合体，俗称微服务全家桶。
 
+#### 2、SpringCloud 和 SpringBoot 是什么关系
+
+> SpringBoot 专注于快速方便的开发单个个体服务。
+>
+> SpringCloud 是关注全局的微服务协调治理框架，它将 SpringBoot 开发的一个个单体微服务整合并管理起来，为各个微服务之间提供配置管理、服务发现、断路器、路由、微代理、事件总线、全局锁、决策竞选、分布式会话等等集成服务。
+>
+> SpringBoot 可以离开 SpringCloud 独立开发项目，但是 SpringCloud 离不开 SpringBoot ，属于依赖关系。
+>
+> **总结：**
+>
+> SpringBoot 专注于快速、方便的开发单个微服务个体，SpringCloud 关注全局的服务治理框架。
+
+#### 3、SpringCloud 相关网址资料
+
+① `https://www.springcloud.cc/spring-cloud-netflix.html`
+
+② `https://www.springcloud.cc/spring-cloud-dalston.html`
+
+③ SpringCloud 中国社区 `http://www.springcloud.cn`
+
+④ SpringCloud 中文网  `https://www.springcloud.cc`
+
+
+
+### Rest 微服务构建案例工程模块
+
+#### 1、父工程构建步骤
+
+①新建父工程 microservicecloud ,切记 packaging 是 pom 模式
+
+② 定义 pom 文件，将后续各个子模块公用的 jar 包等统一提取出来，类似一个抽象父类。
+
+③ pom 文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.hepingfly.springcloud</groupId>
+    <artifactId>microservicecloud</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <junit.version>4.12</junit.version>
+        <log4j.version>1.2.17</log4j.version>
+        <lombok.version>1.16.18</lombok.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>Dalston.SR1</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>1.5.9.RELEASE</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>mysql</groupId>
+                <artifactId>mysql-connector-java</artifactId>
+                <version>5.0.4</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.alibaba</groupId>
+                <artifactId>druid</artifactId>
+                <version>1.0.31</version>
+            </dependency>
+
+            <dependency>
+                <groupId>org.mybatis.spring.boot</groupId>
+                <artifactId>mybatis-spring-boot-starter</artifactId>
+                <version>1.3.0</version>
+            </dependency>
+
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-core</artifactId>
+                <version>1.2.3</version>
+            </dependency>
+
+            <dependency>
+                <groupId>junit</groupId>
+                <artifactId>junit</artifactId>
+                <version>${junit.version}</version>
+                <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>log4j</groupId>
+                <artifactId>log4j</artifactId>
+                <version>${log4j.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>
+```
+
+#### 2、api 公共模块和部门 entiey 创建步骤
+
+① 新建 microservicecloud-api 工程
+
+> 创建方式是在父工程下面 new 一个 moudule
+>
+> 创建完成之后，你再去父工程的 pom 文件看，发现会多了
+>
+> ```xml
+> <modules>
+>     <module>microservicecloudapi</module>
+> </modules>
+> ```
+>
+> 说明子工程被聚合到了父工程中
+
+②修改子工程 pom 文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>microservicecloud</artifactId>
+        <groupId>com.hepingfly.springcloud</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>microservicecloud-api</artifactId>
+
+    <!--当前 module 需要用到的 jar 包，按照自己的需求添加，如果父类已经包含了，可以不用写版本号-->
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+③新建部门实体类并配合 lombok 使用
+
+```java
+@SuppressWarnings("serial")
+@AllArgsConstructor
+@NoArgsConstructor
+@Data
+@Accessors(chain = true)
+public class Dept implements Serializable{
+
+    /**
+     * 主键
+     */
+    private Long deptNum;
+
+    /**
+     * 部门名称
+     */
+    private String deptName;
+
+    /**
+     * 来自哪个数据库，因为微服务架构可以一个服务对应一个数据库，同一个信息被存储到不同数据库
+     */
+    private String dbSource;
+
+}
+```
+
+#### 3、部门服务提供者
+
+① 新建 microservicecloud-provider-dept 工程
+
+> 创建方式是在父工程下面 new 一个 moudule
+>
+> 创建完成之后，你再去父工程的 pom 文件看，发现会多了
+>
+> ```Xml
+> <modules>
+>     <module>microservicecloudapi</module>
+>     <module>microservicecloud-provider-dept</module>
+> </modules>
+> ```
+>
+> 说明子工程被聚合到了父工程中
+
+② 修改子工程 pom 文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>microservicecloud</artifactId>
+        <groupId>com.hepingfly.springcloud</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>microservicecloud-provider-dept</artifactId>
+    <dependencies>
+        <!-- 引入自己定义的 api 通用包，这样就可以使用 Dept 部门 Entity -->
+        <dependency>
+            <groupId>com.hepingfly.springcloud</groupId>
+            <artifactId>microservicecloud-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>druid</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jetty</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+        </dependency>
+
+        <!--修改后立即生效，热部署-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>springloaded</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+③ 新建 yml 配置文件
+
+```yaml
+server:
+  port: 8001
+
+mybatis:
+  config-location: classpath:mybatis/mybatis.cfg.xml   # mybatis 配置文件路径
+  type-aliases-package: com.hepingfly.springcloud.entites
+  mapper-loacations:
+   - classpath:mybatis/mapper/**/*.xml   # mapper 映射文件
+
+spring:
+  application:
+    name: microservicecloud-dept
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource   # 当前数据源操作类型
+    driver-class-name: org.gjt.mm.mysql.Driver
+    url: jdbc:mysql://localhost:3306/springcloud
+    username: root
+    password: 123456
+```
+
+④ 编写部门 dao
+
+```java
+@Mapper
+public interface DeptDao {
+
+    public boolean addDept(Dept dept);
+
+    public Dept findById(Long id);
+
+    public List<Dept> findAll();
+}
+```
+
+⑤ 编写 mapper.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.hepingfly.springcloud.DeptDao">
+   <select id="findById" resultType="Dept">
+      SELECT * FROM  dept WHERE deptNum = #{id}
+   </select>
+
+    <select id="findAll">
+        SELECT * FROM dept;
+    </select>
+    
+    <insert id="addDept">
+        INSERT INTO dept(deptName, db_source) VALUES(#{deptName},database())
+    </insert>
+</mapper>
+```
+
+⑥ 编写 service 及实现类
+
+```java
+public interface DeptService {
+
+    public boolean add(Dept dept);
+
+    public Dept get(Long id);
+
+    public List<Dept> list();
+}
+
+//----------------------------------------
+@Service
+public class DeptServiceImpl implements DeptService {
+
+    @Autowired
+    private DeptDao deptDao;
+    @Override
+    public boolean add(Dept dept) {
+        return deptDao.addDept(dept);
+    }
+
+    @Override
+    public Dept get(Long id) {
+        return deptDao.findById(id);
+    }
+
+    @Override
+    public List<Dept> list() {
+        return deptDao.findAll();
+    }
+}
+```
+
+⑦ 编写 controller
+
+```java
+@RestController
+public class DeptController {
+    private DeptService deptService;
+
+    @RequestMapping(value = "/dept/add",method = RequestMethod.POST)
+    public boolean add(@RequestBody Dept dept) {
+        return deptService.add(dept);
+    }
+
+    @RequestMapping(value = "/dept/get/{id}",method = RequestMethod.GET)
+    public Dept get(@PathVariable("id") Long id) {
+        return deptService.get(id);
+    }
+
+
+    @RequestMapping(value = "/dept/list",method = RequestMethod.GET)
+    public List<Dept> list() {
+        return deptService.list();
+    }
+}
+```
+
+⑧ 编写 springboot 主启动类
+
+```java
+@SpringBootApplication
+public class DeptProviderApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptProviderApp.class,args);
+    }
+}
+```
+
+#### 4、部门服务消费者
+
+① 新建 microservicecloud-consumer-dept 工程
+
+> 创建方式是在父工程下面 new 一个 moudule
+>
+> 创建完成之后，你再去父工程的 pom 文件看，发现会多了
+>
+> ```xml
+> <modules>
+>     <module>microservicecloudapi</module>
+>     <module>microservicecloud-consumer-dept</module>
+> </modules>
+> ```
+>
+> 说明子工程被聚合到了父工程中
+
+② 修改子工程 pom 文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>microservicecloud</artifactId>
+        <groupId>com.hepingfly.springcloud</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <description>部门微服务消费者</description>
+
+    <artifactId>microservicecloud-consumer-dept</artifactId>
+    <dependencies>
+        <!-- 引入自己定义的 api 通用包，这样就可以使用 Dept 部门 Entity -->
+        <dependency>
+            <groupId>com.hepingfly.springcloud</groupId>
+            <artifactId>microservicecloud-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!--修改后立即生效，热部署-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>springloaded</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+        </dependency>
+
+    </dependencies>
+</project>
+```
+
+③ 新建 yml 配置文件
+
+```yaml
+server:
+  port: 80
+```
+
+④ 编写配置 bean 
+
+```java
+@Configuration
+public class ConfigBean {
+
+    @Bean
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+}
+```
+
+⑤ 编写 controller
+
+```java
+@RestController
+public class DeptController_Consumer {
+
+    public static final String REST_URL_PREFIX = "http://localhost:8001";
+
+    /**
+     * RestTemplate 提供了多种便捷访问远程 http 服务的方法
+     * 是一种简单便捷的访问 restful 服务模板类，是 spring 提供的
+     * 用于访问 rest 服务的客户端模板工具类
+     *
+     * 使用方式：
+     * 使用 restTemplate 访问 restful 接口非常简单粗暴无脑
+     * (url,requestMap,ResponseBean.class)
+     * 这三个参数分别代表：
+     * REST 请求地址、请求参数、HTTP 响应转换成被转换的对象类型
+     */
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @RequestMapping(value = "/consumer/dept/add",method = RequestMethod.POST)
+    public boolean add(Dept dept) {
+        return restTemplate.postForObject(REST_URL_PREFIX + "/dept/add",dept,Boolean.class);
+    }
+
+    @RequestMapping(value = "/consumer/dept/get/{id}",method = RequestMethod.GET)
+    public Dept get(@PathVariable("id") Long id) {
+        return restTemplate.getForObject(REST_URL_PREFIX + "/dept/get/" + id,Dept.class);
+    }
+
+    @RequestMapping(value = "/consumer/dept/list",method = RequestMethod.GET)
+    public List<Dept> list() {
+        return restTemplate.getForObject(REST_URL_PREFIX + "/dept/list",List.class);
+    }
+}
+```
+
+⑥ 编写主启动类
+
+```java
+@SpringBootApplication
+public class DeptConsumerApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptConsumerApp.class,args);
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

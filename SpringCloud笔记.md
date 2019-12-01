@@ -608,6 +608,286 @@ public class DeptConsumerApp {
 }
 ```
 
+### Eureka 服务注册与发现
+
+#### 1、Eureka 是什么
+
+Netflix 在设计 Eureka 时遵守的就是 AP 原则
+
+**Eureka 是什么？**
+
+> Eureka 是 Netflix 的一个子模块，也是核心模块之一。Eureka 是一个基于 REST 的服务，用于定位服务，以实现云端中间层服务发现和故障转移。服务注册与发现对于微服务架构来说是非常重要的，有了服务注册与发现，只需要使用服务的标识符，就可以访问到服务，而不需要修改服务调用的配置文件了。功能类似于 dubbo 的注册中心，比如 Zookeeper
+
+**Eureka 的基本架构**
+
+> Spring Cloud 封装了 Netflix 公司开发的 Eureka 模块来实现服务注册与发现
+>
+> Eureka 采用了 C-S 的设计架构架构。Eureka Server 作为服务注册功能的服务器，它是服务注册中心。
+>
+> 系统中其他的微服务，使用 Eureka 的客户端连接到 Eureka Server  并维持心跳连接。这样系统的维护人员就可以通过 Eureka Server 来监控系统中各个微服务是否正常运行。SpringCloud 的一些其他模块（比如 Zuul）就可以通过 Eureka Server 来发现系统中其他微服务，并执行相关逻辑
+
+![Eureka架构](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-springcloud/Eureka%E6%9E%B6%E6%9E%84.png)
+
+**说明：**
+
+> Eureka 包含两个组件：Eureka Server 和 Eureka Client
+>
+> - Eureka Server 提供服务注册服务。各个节点启动后，会在 EurekaServer 中进行注册，这样 EurekaServer 中的服务注册表中将会存储所有可用服务节点信息，服务节点的信息可以在界面中直观的看到
+> - Eureka Client 是一个 Java 客户端，用于简化 Eureka Server 的交互，客户端同时也具备一个内置的、使用轮询（round-robin）负载算法的负载均衡器。在应用启动后，将会向 Eureka Server 发送心跳（默认周期为 30秒）。如果 Eureka Server 在多个心跳周期内没有接收到某个节点的心跳，EurekaServer 将会从服务注册表中把这个服务节点移除（默认 90 秒）
+
+**Eureka 三大角色：**
+
+> - Eureka Server 提供服务注册与发现
+> - Service Provider 服务提供方将自身服务注册到 Eureka，从而使服务消费方能够找到
+> - Service Consumer 服务消费方从 Eureka 获取注册服务列表，从而能够消费服务
+
+#### 2、Eureka Server 服务注册中心建立
+
+① 新建 microservicecloud-eureka 工程
+
+> 创建方式是在父工程下面 new 一个 moudule
+>
+> 创建完成之后，你再去父工程的 pom 文件看，发现会多了
+>
+> ```xml
+> <modules>
+>     <module>microservicecloudapi</module>
+>     <module>microservicecloud-provider-dept</module>
+>     <module>microservicecloudconsumer-dept</module>
+>     <module>microservicecloud-eureka</module>
+> </modules>
+> ```
+>
+> 说明子工程被聚合到了父工程中
+
+② 修改子工程 pom 文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>microservicecloud</artifactId>
+        <groupId>com.hepingfly.springcloud</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>microservicecloud-eureka</artifactId>
+
+    <dependencies>
+        <!--eureka-server 服务端-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-eureka-server</artifactId>
+        </dependency>
+
+        <!--修改后立即生效，热部署-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>springloaded</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+        </dependency>
+    </dependencies>
+</project>
+```
+
+③ 新建 yml 配置文件
+
+```yaml
+server:
+  port: 7001
+eureka:
+  instance:
+    hostname: localhost   # eureka服务端的实例名称
+  client:
+    register-with-eureka: false  # false 表示不向注册中心注册自己
+    fetch-registry: false  # false 表示自己端就是注册中心，我的职责就是维护服务实例，并不需要去检索服务
+    service-url:
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/  # 设置与 Eureka Server 交互的地址查询服务和注册服务都需要依赖这个地址
+```
+
+④ 编写 springboot 主启动类
+
+```java
+@SpringBootApplication
+@EnableEurekaServer   // 开启 EurekaServer,接受其他微服务注册进来
+public class EurekaServerApp {
+    public static void main(String[] args) {
+        SpringApplication.run(EurekaServerApp.class,args);
+    }
+}
+```
+
+⑤ 测试是否成功
+
+启动 SpringBoot 主启动类，然后在浏览器端访问 `localhost:7001`,  如果出现 Eureka 页面证明服务启动成功。
+
+#### 3、将已有的部门微服务注册进 Eureka 服务注册中心
+
+ 修改 microservicecloud-provider-dept 工程
+
+① 修改 pom 文件
+
+```xml
+<!--将微服务 provider 注册进 eureka-->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-eureka</artifactId>
+</dependency>
+
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-config</artifactId>
+</dependency>
+
+
+<!-- 在 pom 文件中添加上面两个依赖 -->
+```
+
+② 修改 yml 配置文件
+
+```yaml
+eureka:
+  client:   # 将客户端注册进 eureka 服务列表内
+    service-url:
+      defaultZone: http://localhost:7001/eureka
+      
+# 在原有 yml 配置文件中新增上面的配置
+```
+
+③ 修改主启动类
+
+```java
+@SpringBootApplication
+@EnableEurekaClient      // 加上这个注解后，本服务启动后会自动注册进 eureka 服务中
+public class DeptProviderApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptProviderApp.class,args);
+    }
+}
+```
+
+④ 测试
+
+先启动 eureka 服务端，microservicecloud-eureka 这个服务，然后再启动 microservicecloud-provider-dept 这个服务。然后访问 `localhost:7001` ，在页面可以看到应用被注册进了 eureka 服务。
+
+**这里要注意下微服务的注册名：**
+
+```yaml
+spring:
+  application:
+    name: microservicecloud-dept
+    
+# 就是你在配置文件中配置的应用名称
+```
+
+#### 4、微服务信息完善
+
+1）、主机映射名称修改
+
+当你在页面上访问 eureka 服务 `localhost:7001` 时，会看到下面的信息，其中 Status 一栏展示的信息，有点复杂，我们可以定制这个展示名称
+
+```
+Application	AMIs	Availability   Zones	   Status
+MICROSERVICECLOUD-DEPT	n/a (1)	  (1)	   UP (1) - 192.168.31.90:microservicecloud-dept:8001
+```
+
+**修改方式：**
+
+通过修改 microservicecloud-provider-dept 这个服务的 yml 配置文件即可
+
+```yaml
+eureka:
+  client:   # 将客户端注册进 eureka 服务列表内
+    service-url:
+      defaultZone: http://localhost:7001/eureka
+  instance:
+    instance-id: microservicespringcloud-dept  # 增加这个配置即可，指定注册进 eureka 的实例名称
+```
+
+这样在页面上看到的结果就是：
+
+```
+Application	AMIs	 Availability             Zones	     Status
+MICROSERVICECLOUD-DEPT	   n/a (1)	         (1)	      UP (1) -microservicespringcloud-dept
+```
+
+2）、主机 ip 信息提示
+
+当我们把鼠标悬停在上面 Status 栏下面的服务实例名称上时，在浏览器左下角可以显示 `ip:port/info`,这样可以很快知道这个微服务在哪台机器上。
+
+**修改方式：**
+
+通过修改 microservicecloud-provider-dept 这个服务的 yml 配置文件即可。
+
+```yaml
+eureka:
+  client:   # 将客户端注册进 eureka 服务列表内
+    service-url:
+      defaultZone: http://localhost:7001/eureka
+  instance:
+    prefer-ip-address: true    #让访问路径可以显示 ip 地址
+```
+
+3）、info 内容构建
+
+希望点击 Status 栏下面具体微服务实例名称，显示的是该微服务相关信息，而不是 404 页面
+
+① 修改  microservicecloud-provider-dept 这个服务的 pom 文件
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+
+<!-- 在 pom 文件中增加上面的依赖 -->
+```
+
+② 修改总的父工程，修改 pom 文件，添加构建 build 信息
+
+```xml
+<build>
+    <finalName>microservicecloud</finalName>
+    <resources>
+        <resource>
+            <directory>src/main/resources</directory>
+            <filtering>true</filtering>
+        </resource>
+    </resources>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <configuration>
+                <delimiters>
+                    <delimit>$</delimit>
+                </delimiters>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+```
+
+③ 修改  microservicecloud-provider-dept 这个服务的 yml 文件
+
+```yaml
+info:
+  app.name: hepingfly-microservicecloud
+  company.name: www.hepingfly.com
+  build.artifactId: $project.artifactId$
+  build.version: $project.version$
+
+# yml 配置文件中添加以上配置
+```
+
+这样你在页面上点击 Status 栏中具体的某个服务，超链接点进去就不会是 404 而是你在配置文件中配置的信息
 
 
 
@@ -617,10 +897,9 @@ public class DeptConsumerApp {
 
 
 
-
-
-
-
+```
+EMERGENCY! EUREKA MAY BE INCORRECTLY CLAIMING INSTANCES ARE UP WHEN THEY'RE NOT. RENEWALS ARE LESSER THAN THRESHOLD AND HENCE THE INSTANCES ARE NOT BEING EXPIRED JUST TO BE SAFE.
+```
 
 
 

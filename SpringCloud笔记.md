@@ -889,33 +889,312 @@ info:
 
 这样你在页面上点击 Status 栏中具体的某个服务，超链接点进去就不会是 404 而是你在配置文件中配置的信息
 
+#### 5、Eureka 自我保护机制
 
-
-
-
-
-
-
+如果你这个服务长时间不与 Eureka 建立连接，在页面就会报如下错误：
 
 ```
 EMERGENCY! EUREKA MAY BE INCORRECTLY CLAIMING INSTANCES ARE UP WHEN THEY'RE NOT. RENEWALS ARE LESSER THAN THRESHOLD AND HENCE THE INSTANCES ARE NOT BEING EXPIRED JUST TO BE SAFE.
 ```
 
+**什么是自我保护机制？**
 
+> 默认情况下，如果 Eureka Server 在一定时间内没有接收到某个微服务实例的心跳，EurekaServer 将会注销该实例（默认 90 秒）。但是当网络分区故障发生时，微服务与 Eureka Server 之间无法正常通信，以上行为可能就变的非常危险了。（因为微服务本身其实是健康的，此时不应该注销这个微服务）。Eureka 通过 “自我保护模式”来解决这个问题。当 EurekaServer 在短时间丢失过多客户端时（可能发生了网络分区故障），那么这个节点就会进入自我保护模式。一旦进入该模式，EurekaServer 就会保护服务注册表中的信息，不再删除服务注册表中的数据（也就是不会注销任何微服务）。当网络故障恢复后，该 Eureka Server 节点会自动退出自我保护模式。
+>
+> 在自我保护模式中，Eureka Server 会保护服务注册表中的信息，不再注销任何服务实例。当它收到的心跳数重新恢复到阈值以上时，该 Eureka Server 节点就会自动退出自我保护模式。它的设计哲学就是宁可保留错误的服务注册信息，也不盲目注销任何可能健康的服务实例。
+>
+> 综上，自我保护模式是一种应对网络异常的安全保护措施。它的架构哲学是宁可同时保留所有微服务（健康的微服务和不健康的微服务都会保留），也不盲目注销任何健康的微服务。使用自我保护模式，可以让 Eureka 更加健壮、稳定。
+>
+> 在 SpringCloud 中，可以通过下面的配置来禁用自我保护模式，但是不推荐禁用。
+>
+> ```
+> eureka.server.enable-self-preservation=false
+> ```
 
+**一句话总结一下就是：**
 
+> 某时刻某个微服务不可用了，eureka 不会立刻清理，依旧会对该微服务的信息进行保存。
 
+#### 6、Eureka 服务发现
 
+对于注册进 eureka 里面的微服务，可以通过服务发现来获得该服务的信息。
 
+① 修改 microservicecloud-provider-dept 工程的 DeptController
 
+```java
+@RestController
+public class DeptController {
 
+    @Autowired
+    private DiscoveryClient client;
 
+    @RequestMapping(value = "/dept/discovery",method = RequestMethod.GET)
+    public Object discovery() {
+        // 获取 eureka 中所有的微服务
+        List<String> services = client.getServices();
+        List<ServiceInstance> instances = client.getInstances("MICROSERVICECLOUD-DEPT");
+        for (ServiceInstance instance : instances) {
+            System.out.println(instance.getServiceId() + "\t" + instance.getHost() + "\t" + instance.getPort() + "\t" + instance.getUri());
+        }
+        return this.client;
 
+    }
+}
 
+// 在原有代码的基础上，增加以上代码
+```
 
+② 修改microservicecloud-provider-dept 工程的主启动类
 
+```java
+@SpringBootApplication
+@EnableEurekaClient      // 加上这个注解后，本服务启动后会自动注册进 eureka 服务中
+@EnableDiscoveryClient   // 服务发现
+public class DeptProviderApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptProviderApp.class,args);
+    }
+}
+```
 
+③ 测试
 
+访问 `http://localhost:8001/dept/discovery` 
+
+```json
+{
+    "localServiceInstance": {
+        "host": "192.168.31.90",
+        "port": 8001,
+        "uri": "http://192.168.31.90:8001",
+        "serviceId": "microservicecloud-dept",
+        "metadata": {},
+        "secure": false
+    },
+    "services": [
+        "microservicecloud-dept"
+    ]
+}
+```
+
+#### 7、Eureka 集群配置
+
+① 新建 microservicecloudeureka-b 和 microservicecloudeureka-c 工程
+
+② 修改 pom 文件，可以按照 microservicecloud-eureka 去粘贴 pom 文件
+
+③ 修改 b 和 c 两个工程的主启动类
+
+```java
+@SpringBootApplication
+@EnableEurekaServer   // 开启 EurekaServer,接受其他微服务注册进来
+public class EurekaServerApp {
+    public static void main(String[] args) {
+        SpringApplication.run(EurekaServerApp.class,args);
+    }
+}
+
+// 主启动类和 microservicecloud-eureka  保持一致
+```
+
+④ 修改三台 eureka 服务器的 yml 配置文件
+
+```yaml
+server:
+  port: 7001
+eureka:
+  instance:
+    hostname: eureka7001.com   # eureka服务端的实例名称
+  client:
+    register-with-eureka: false  # false 表示不向注册中心注册自己
+    fetch-registry: false  # false 表示自己端就是注册中心，我的职责就是维护服务实例，并不需要去检索服务
+    service-url:   # 单机版  http://${eureka.instance.hostname}:${server.port}/eureka/
+      defaultZone: http://eureka7002.com:7002/eureka/,http://eureka7003.com:7003/eureka/    # 设置与 Eureka Server 交互的地址查询服务和注册服务都需要依赖这个地址
+      
+ --------------------------------------------------------------------------------------
+ server:
+  port: 7002
+eureka:
+  instance:
+    hostname: eureka7002.com   # eureka服务端的实例名称
+  client:
+    register-with-eureka: false  # false 表示不向注册中心注册自己
+    fetch-registry: false  # false 表示自己端就是注册中心，我的职责就是维护服务实例，并不需要去检索服务
+    service-url:   # 单机版  http://${eureka.instance.hostname}:${server.port}/eureka/
+      defaultZone: http://eureka7001.com:7001/eureka/,http://eureka7003.com:7003/eureka/    # 设置与 Eureka Server 交互的地址查询服务和注册服务都需要依赖这个地址
+      
+--------------------------------------------------------------------------------------
+ server:
+  port: 7003
+eureka:
+  instance:
+    hostname: eureka7003.com   # eureka服务端的实例名称
+  client:
+    register-with-eureka: false  # false 表示不向注册中心注册自己
+    fetch-registry: false  # false 表示自己端就是注册中心，我的职责就是维护服务实例，并不需要去检索服务
+    service-url:   # 单机版  http://${eureka.instance.hostname}:${server.port}/eureka/
+      defaultZone: http://eureka7001.com:7001/eureka/,http://eureka7002.com:7002/eureka/    # 设置与 Eureka Server 交互的地址查询服务和注册服务都需要依赖这个地址
+```
+
+⑤ 修改 microservicecloud-provider-dept 工程 yml 配置文件，将微服务发布到 3 台 eureka 集群配置中
+
+```yaml
+eureka:
+  client:   # 将客户端注册进 eureka 服务列表内
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka,http://eureka7003.com:7003/eureka
+  instance:
+    instance-id: microservicespringcloud-dept
+    prefer-ip-address: false
+```
+
+注：
+
+> 记得修改下 host 文件，做下域名映射。把 eureka7001.com 和 eureka7002.com 和 eureka7003.com 都和 127.0.0.1 做映射
+
+#### 8、Eureka 比 zookerper 好在哪里
+
+首先说下 CAP 理论：
+
+> CAP 理论的核心是：一个分布式系统不可能同时很好的满足一致性，可用性和分区容错性。
+>
+> CAP 理论就是说在分布式存储系统中，最多只能实现上面的两点。而由于当前的网络硬件肯定会出现延迟丢包等问题，**所以分区容错性是我们必须要实现的**。
+>
+> 所以我们只能在一致性和可用性之间进行权衡，没有 NOSQL 系统能同时保证这三点。
+>
+> C ：强一致性   A：高可用性    P：分布式容忍性
+>
+> - CA ：传统 Oracle 数据库
+> - AP ：大多数网站架构的选择
+> - CP ：Redis  Mongodb 
+
+**Eureka 和 Zookeeper 比较**
+
+> 作为服务注册中心，Eureka 和 Zookeeper 相比：
+>
+> 著名的 CAP 理论指出，一个分布式系统不可能同时满足 C（一致性）、A（可用性）和 P（分区容错性）。由于分区容错性 P 在分布式系统中是必须要保证的，因此我们只能在 A 和 C 之间权衡。
+>
+> **Zookeeper 保证的是 CP**
+>
+> - 当向注册中心查询服务列表时，我们可以容忍注册中心返回的是几分钟以前的注册信息，但不能接受服务直接 down 掉不可用。也就是说，服务注册功能对于可用性的要求要高于一致性。但是 zk 会出现这样一种情况，当 master 节点因为网络故障与其他节点失去联系时，剩余节点会重新进行 leader 选举。问题在于，选举 leader 的时间太长，大概 30 ~ 120 秒，且选举期间整个 zk 集群都是不可用的，这就导致了在选举期间注册服务瘫痪。在云部署环境下，因网络问题使得 zk 集群失去 master 节点是较大概率会发生的事件，虽然服务能最终恢复，但是漫长的选举时间导致的注册长期不可用是不能容忍的。
+>
+> **Eureka 保证的是 AP** 
+>
+> - Eureka 看明白了这一点，因此在设计时就优先保证可用性。Eureka 各个节点都是平等的，几个节点挂掉不会影响正常节点的工作，剩余的节点依然可以提供注册和查询服务。而 Eureka 的客户端在向某个 Eureka 注册时，如果发现连接失败，则会自动切换至其他节点，只要有一台 Eureka 还在就能保证服务可用（保证可用性），只不过查到的信息可能不是最新的（不保证强一致性）。除此之外，Eureka 还有一种自我保护机制，如果在 15 分钟内超过 85%的节点都没有正常的心跳，那么 Eureka 就认为客户端与注册中心出现了网络故障，此时会出现以下几种情况：
+>   - Eureka 不再从注册列表中移除因为长时间没收到心跳而应该过期的服务
+>   - Eureka 仍然能够接受新服务的注册和查询请求，但是不会被同步到其他节点上（即保证当前节点依然可用）
+>   - 当网络稳定时，当前实例新的注册信息会被同步到其他节点中
+>
+> 因此，Eureka 可以很好的应对因网络故障导致部分节点失去联系的情况，而不会像 zookeeper 那样使整个注册服务瘫痪
+
+### Ribbon 负载均衡
+
+#### 1、Ribbon 是什么
+
+> Spring Cloud Ribbon 是基于 Netflix Ribbon 实现的一套客户端负载均衡的工具。
+>
+> 简单的说，Ribbon 是 Netflix 发布的开源项目，主要功能是提供客户端软件负载均衡算法，将 Netflix 的中间层服务连接在一起。Ribbon 客户端组件提供一系列完善的配置项如连接超时，重试等。简单的说，就是在配置文件中列出 Load Balancer（LB）后面所有的机器，Ribbon 会自动帮助你基于某种规则（如简单轮询，随机连接等）去连接这些机器。我们也很容易使用 Ribbon 实现自定义的负载均衡算法。
+
+**负载均衡：**
+
+> LB，即负载均衡（Load Balance），在微服务或分布式集群中经常使用的一种应用。
+>
+> 负载均衡简单的说就是将用户的请求平摊的分配到多个服务上，从而达到系统的 HA
+>
+> 常见的负载均衡有 NGINX 、	LVS、F5等
+>
+> 相应的在中间件，例如：dubbo和 springCloud 中均给我提供了负载均衡，Springcloud 的负载均衡算法可以自定义。
+>
+> LB 又可以分为：
+>
+> - 集中式 LB
+>   - 即在服务的消费方和提供方之间使用独立的 LB 设施（可以是硬件，如F5，也可以是软件，如 nginx）,由该设施负责把访问请求通过某种策略转发至服务的提供方
+> - 进程内 LB
+>   - 将 LB 逻辑集成到消费方，消费方从服务注册中心获知有哪些地址可用，然后自己再从这些地址中选择出一个合适的服务器。
+>   - Ribbon 就属于进程内 LB，它只是一个类库，集成于消费方进程，消费方通过它来获取到服务提供方地址。
+
+#### 2、Ribbon 配置
+
+① 修改 microservicecloudconsumer-dept 工程
+
+② 修改 该工程 pom 文件
+
+```xml
+<!--Ribbon 相关-->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-eureka</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-ribbon</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-config</artifactId>
+</dependency>
+
+<!-- 在原有基础上增加以上依赖 -->
+```
+
+③ 修改该工程 application.yml 配置文件，追加 eureka 的服务注册地址
+
+```yaml
+eureka:
+  client:
+    register-with-eureka: false
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka/,http://eureka7002.com:7002/eureka/,http://eureka7003.com:7003/eureka/
+```
+
+④ 开启负载均衡
+
+```java
+@Configuration
+public class ConfigBean {
+
+    @Bean
+    @LoadBalanced   // 加上这个注解
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+}
+
+// 前面我们说了 springcloud 带有负载均衡，然后在 springcloud 中我们是通过 restTemplate 来调用 rest 服务的，所以只要你在创建这个 bean 的时候加上 @LoadBalanced 注解即可开启负载均衡
+```
+
+⑤ 修改该工程主启动类
+
+```java
+@SpringBootApplication
+@EnableEurekaClient     // 添加这个注解
+public class DeptConsumerApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptConsumerApp.class,args);
+    }
+}
+```
+
+⑥ 修改该工程的 controller
+
+```java
+@RestController
+public class DeptController_Consumer {
+
+    //public static final String REST_URL_PREFIX = "http://localhost:8001";
+    
+    // 这里修改为由原来的 ip 和端口去访问服务提供者，改为通过服务提供者注册进 eureka 的应用名称，通过 eureka 去访问服务提供者
+    public static final String REST_URL_PREFIX = "http://microservicecloud-dept";
+}
+```
+
+⑦ 先启动三个 eureka 集群，再启动 microservicecloud-provider-dept  把服务注册进 eureka
+
+⑧ 再启动 microservicecloudconsumer-dept ，这个工程启动后，之前 controller 里面写了接口，测试一下接口是否能访问成功
+
+**总结：**
+
+> Ribbon 和 Eureka 整合后 Consumer 可以直接调用服务而不用再关心地址和端口号（直接通过注册进 eureka 的服务名称进行调用）
 
 
 

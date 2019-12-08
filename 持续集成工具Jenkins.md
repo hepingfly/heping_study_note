@@ -54,7 +54,22 @@
 
 ![自动部署](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-jenkins/%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2.png)
 
+#### 4、运行 Jenkins 主体程序并初始化
 
+**Jenkins 部署：**
+
+① 下载 jenkins.war 包，并放在 tomcat 的 webapps 目录下
+
+② 修改 tomcat 的 server.xml 文件
+
+```xml
+<Connector port="8080" protocol="HTTP/1.1"
+               connectionTimeout="20000"
+               redirectPort="8443" URIEncoding="UTF-8" />
+<!-- 加上 URIEncoding="UTF-8"  防止 get 请求提交时，参数乱码  -->
+```
+
+③ 启动 tomcat 并访问 `ip:port/jenkins`
 
 
 

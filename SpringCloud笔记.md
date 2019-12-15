@@ -1196,11 +1196,325 @@ public class DeptController_Consumer {
 
 > Ribbon 和 Eureka 整合后 Consumer 可以直接调用服务而不用再关心地址和端口号（直接通过注册进 eureka 的服务名称进行调用）
 
+#### 3、Ribbon 负载均衡
+
+![eureka和ribbon架构图](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-springcloud/eureka%E5%92%8Cribbon%E6%9E%B6%E6%9E%84%E5%9B%BE.png)
+
+> Ribbon 在工作时分成两步：
+>
+> 第一步先选择 EurekaServer，它优先选择在同一个区域内负载较少的 server
+>
+> 第二步再根据用户指定的策略，在从 server 取到的服务注册列表中选择一个地址
+>
+> 其中 Ribbon 提供了多种策略：比如轮询、随机和根据响应时间加权。
+
+**下面说一下步骤：**
+
+① 参考 microservicecloud-provider-dept 工程，再新建两份，分别修改端口号为 8002，8003（新建的这两份工程 pom 文件的依赖和 microservicecloud-provider-dept 一样，代码什么的也和这个工程一样，就等于把这个工程拷贝两份，然后修改下 yml 配置文件）
+
+② 新建 8002 工程数据库，8003 工程数据库，各自微服务分别连各自的数据库
+
+③ 修改 8002 和 8003 各自的 yml 配置文件
+
+```yaml
+server:
+  port: 8002    # 主要修改端口号
+
+mybatis:
+  config-location: classpath:mybatis/mybatis.cfg.xml   
+  type-aliases-package: com.hepingfly.springcloud.entites
+  mapper-locations: classpath:mybatis/mapper/*.xml  
+
+spring:
+  application:
+    name: microservicecloud-dept    # 这个名字千万不能改，几个服务提供者通过统一的名称注册到 eureka 中对外提供服务
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource  
+    driver-class-name: org.gjt.mm.mysql.Driver
+    url: jdbc:mysql://192.168.31.128:3306/springcloud02    # 修改数据库名字，一个微服务连一个数据库
+    username: root
+    password: 123
+eureka:
+  client:   
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka,http://eureka7003.com:7003/eureka
+  instance:
+    instance-id: microservicespringcloud-dept
+    prefer-ip-address: false
+
+info:
+  app.name: hepingfly-microservicecloud
+  company.name: www.hepingfly.com
+  build.artifactId: $project.artifactId$
+  build.version: $project.version$
+  
+  #-------------------------------------------------------------------------------------
+  server:
+  port: 8003    # 主要修改端口号
+
+mybatis:
+  config-location: classpath:mybatis/mybatis.cfg.xml   
+  type-aliases-package: com.hepingfly.springcloud.entites
+  mapper-locations: classpath:mybatis/mapper/*.xml  
+
+spring:
+  application:
+    name: microservicecloud-dept   # 这个名字千万不能改，几个服务提供者通过统一的名称注册到 eureka 中对外提供服务
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource   
+    driver-class-name: org.gjt.mm.mysql.Driver
+    url: jdbc:mysql://192.168.31.128:3306/springcloud03  # 修改数据库名字，一个微服务连一个数据库
+    username: root
+    password: 123
+eureka:
+  client:   
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka,http://eureka7003.com:7003/eureka
+  instance:
+    instance-id: microservicespringcloud-dept
+    prefer-ip-address: false
+
+info:
+  app.name: hepingfly-microservicecloud
+  company.name: www.hepingfly.com
+  build.artifactId: $project.artifactId$
+  build.version: $project.version$
+```
+
+总结一下修改注意点：
+
+> 需要修改的：
+>
+> 1、端口号
+>
+> 2、连接的数据库名
+>
+> 不能修改的：
+>
+> 对外暴露的统一的服务实例名
+
+④ 先启动 3 个 eureka 集群
+
+⑤ 再启动 3 个 microservicecloud-provider-dept 微服务
+
+⑥ 启动 microservicecloudconsumer-dept ，这样客户端通过 Ribbon 完成负载均衡并访问服务提供者提供的服务
+
+> 这里出现的现象就是：
+>
+> microservicecloudconsumer-dept   这个服务是消费者，3 个 microservicecloud-provider-dept  是服务提供者，这三个服务注册到了 eureka server 中，这时候我服务消费者就会去 eureka server 中获取可用的服务列表，然后我这个服务消费者集成了 Ribbon，我又拿到了可用的服务列表，那么 Ribbon 就可以根据自己的负载均衡算法去调用服务提供者。所以这时候你去访问 consumer 中的接口时，consumer 去调用 provider，那么可能调用到 provider1 也可能调用到 provider2，也可能调用到 provider3，这个是由 Ribbon 的负载均衡算法决定的。
+
+**总结：**
+
+> Ribbon 其实就是一个软负载均衡的客户端组件，它可以和其他所需请求的客户端结合使用（比如这里的 consumer），和 eureka 结合只是其中一个实例。
+
+#### 4、Ribbon 的核心组件 IRule
+
+IRule ：根据特定算法从服务列表中选取一个要访问的服务
+
+> - RoundRobinRule
+>   - 轮询
+> - RandomRule
+>   - 随机
+> - AvailabilityFilteringRule
+>   - 会先过滤由于多次访问故障而处于断路器跳闸状态的服务，还有并发的连接数量超过阈值的服务，然后对剩余的服务列表按照轮询策略进行访问。
+> - WeightedResponseTimeRule
+>   - 根据平均响应时间计算所有服务的权重，响应时间越快服务权重越大被选中的概率越高。刚启动时如果统计信息不足，则使用 RoundRobinRule 策略，等统计信息足够，会切换到 WeightedResponseTimeRule
+> - RetryRule
+>   - 先按照 RoundRobinRule 的策略获取服务，如果获取服务失败则在指定时间内会进行重试，获取可用的服务
+> - BestAvailableRule
+>   - 会先过滤掉由于多次访问故障而处于断路器跳闸状态的服务，然后选择一个并发量最小的服务
+> - ZoneAvoidanceRule
+>   - 默认规则，复合判断 server 所在区域的性能和 server 的可用性选择服务器
+
+```java
+@Configuration
+public class ConfigBean {
+
+    @Bean
+    @LoadBalanced
+    public RestTemplate restTemplate() {
+        return new RestTemplate();
+    }
+
+    @Bean
+    public IRule myRule() {  
+        return new RandomRule();// 如果想切换负载均衡算法，直接把这个 bean 加入到 ioc 容器中即可
+    }
+
+}
+```
+
+#### 5、自定义 Ribbon 的负载均衡策略
+
+① 需要修改 microservicecloudconsumer-dept 工程，因为这个工程集成了 Ribbon
+
+② 在主启动类上添加 @RibbonClient 注解
+
+> 在启动该微服务的时候就能去加载我们的自定义 Ribbon 配置类，从而使配置生效
+
+```java
+@SpringBootApplication
+@EnableEurekaClient
+// 我在 MyselfRule.class 里面去自定义自己的负载均衡策略
+// 这样在启动该微服务的时候就能去加载我们自定义的类(这个类里面自定义了负载均衡策略)
+@RibbonClient(name = "MICROSERVICECLOUD-DEPT", configuration = MyRule.class)
+public class DeptConsumerApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptConsumerApp.class,args);
+    }
+}
+```
+
+**注意事项，注意事项，注意事项：**
+
+> 官方文档给出了明确警告：
+>
+> 就是你自定义的负载均衡策略类不能放在 @ComponentScan 所扫描的当前包下及其子包下，否则我们这个自定义的负载均衡策略类就会被所有的 Ribbon 客户端所共享，也就是说我们达不到特殊化定制的目的了。
+
+```java
+/**
+ * 自定义负载均衡策略配置类
+ */
+@Configuration
+public class MyRule {
+
+    @Bean
+    public IRule myRule() {
+        return new RandomRule();  // Ribbon 默认是轮询，我自定义这个类为随机 
+    }
+}
+
+// 我这个 myRule 类和 SpringBoot 的主启动类，不在同一个包下,因为 @SpringBootApplication 这个注解点进去就是 @ComponentScan
+```
+
+假如我现在有个需求：依旧是使用轮询策略，但是要求每个服务器调用 5 次。就是说以前轮询是每个机器一次，现在是每台机器调用 5 次。
+
+### Feign 负载均衡
+
+#### 1、Feign 是什么
+
+> 概述：
+>
+> Feign 是一个声明式的 WebService 客户端。使用 Feign 能让编写 WebService 客户端更加简单，它的使用方法是定义一个接口，然后在上面添加注解，同时也支持 JAX-RS 标准的注解。Feign 也支持可拔插式的编码器和解码器。SpringCloud 对 Feign 进行了封装，使其支持了 SpringMVC 标准注解和 HttpMessageConversters。Feign 可以与 Eureka 和 Ribbon 组合使用以支持负载均衡。
+>
+> ---------------------------------------------------------------------------------------------
+>
+> 说的直白一点就是：
+>
+> Feign 是一个声明式的 Web 服务客户端，使得编写 Web 服务客户端变得非常容易，只需要创建一个接口，然后在上面添加注解即可。
+
+**Feign 能干什么？**
+
+> Feign 旨在使编写 Java Http 客户端变得更容易。
+>
+> 前面在使用 Ribbon + RestTemplate 时，利用 RestTemplate 对 http 请求的封装处理，形成了一套模板化的调用方法。但是在实际开发中，由于对服务依赖的调用可能不止一处，往往一个接口会被多处调用，所以通常都会针对每个微服务自行封装一些客户端类来包装这些依赖服务的调用。所以，Feign 在此基础上做了进一步的封装，由它来帮助我们定义和实现依赖服务接口的定义。在 Feign 的实现下，我们只需要创建一个接口并使用注解的方式来配置它（以前是 DAO 接口上面标注 Mapper 注解，现在是一个微服务接口上面标注一个 Feign 注解即可），即可完成对服务提供方的接口绑定，简化了使用 SpringCloud Ribbon 时，自动封装服务调用客户端的开发量。
+
+#### 2、Feign 工程构建
+
+步骤：
+
+① 参考 microservicecloudconsumer-dept 工程，新建 microservicecloudconsumer-dept-feign 工程
+
+② microservicecloudconsumer-dept-feign 工程 pom 文件修改，主要添加对 feign 的支持
+
+```xml
+<!-- 在原有依赖的基础上，增加以下依赖 -->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-feign</artifactId>
+</dependency>
+```
+
+③ 修改  microservicecloudapi 工程，通用的公共的放在这个工程里面
+
+④ 修改  microservicecloudapi 工程 pom 文件，增加 feign 依赖
+
+```xml
+<!-- 在原有依赖的基础上，增加以下依赖 -->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-feign</artifactId>
+</dependency>
+```
+
+⑤ 新建 DeptClientService 接口，并新增注解 @FeignClient
+
+```java
+@FeignClient(value = "MICROSERVICECLOUD-DEPT")
+public interface DeptClientService {
+
+    @RequestMapping(value = "/dept/get/{id}",method = RequestMethod.GET)
+    public Dept get(@PathVariable("id") long id);
+
+    @RequestMapping(value = "/dept/list", method = RequestMethod.GET)
+    public List<Dept> list();
+
+    @RequestMapping(value = "/dept/add", method = RequestMethod.POST)
+    public boolean add(Dept dept);
+}
+```
+
+⑥ 执行 maven 的 clean install，因为 microservicecloudapi 工程是公共部分，这样保证其他服务都能用到
+
+⑦ microservicecloudconsumer-dept-feign 工程 修改 controller , 添加上一步新建的 DeptClientService 接口
+
+```java
+@RestController
+public class DeptController_Consumer {
+	
+    // 因为我在这个工程的 pom 中已经引入了 microservicecloudapi 的依赖，所以这里我可以直接使用这个接口
+    @Autowired(required = false) // 加个 required 是因为接口没有实现类, idea 中会报错,加 required 解决
+    private DeptClientService clientService;
 
 
+    @RequestMapping(value = "/consumer/dept/add",method = RequestMethod.POST)
+    public boolean add(Dept dept) {
+        return clientService.add(dept);
+    }
 
+    @RequestMapping(value = "/consumer/dept/get/{id}",method = RequestMethod.GET)
+    public Dept get(@PathVariable("id") Long id) {
+        return clientService.get(id);
+    }
 
+    @RequestMapping(value = "/consumer/dept/list",method = RequestMethod.GET)
+    public List<Dept> list() {
+        return clientService.list();
+    }
+}
+```
 
+⑧ microservicecloudconsumer-dept-feign 工程 修改主启动类
+
+```java
+@SpringBootApplication
+@EnableEurekaClient
+@EnableFeignClients(basePackages = {"com.hepingfly.springcloud"})   // 开启 feign
+@ComponentScan(basePackages = {"com.hepingfly.springcloud"})
+public class DeptConsumerApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptConsumerApp.class,args);
+    }
+}
+```
+
+⑨ 测试
+
+> 1）、启动 3 个 eureka 集群
+>
+> 2）、启动 3 个 部门服务提供者微服务，这样这 3 个服务会注册进 eureka 集群
+>
+> 3）、启动 Feign 所在的工程 microservicecloudconsumer-dept-feign
+>
+> 4）、访问接口 `http://localhost:8001/consumer/dept/list`
+
+**小总结：**
+
+> Feign 通过接口的方法调用 Rest 服务（之前我们是通过 Ribbon + RestTemplate）
+>
+> 该请求直接发送给 Eureka 服务器（`http://MICROSERVICECLOUD-DEPT/dept/list`），通过 Feign 直接找到服务接口，由于在进行服务调用的时候融合了 Ribbon 技术，所以也支持负载均衡作用。
+
+### Hystrix 断路器
 
 
 

@@ -54,7 +54,26 @@
 
 ![自动部署](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-jenkins/%E8%87%AA%E5%8A%A8%E9%83%A8%E7%BD%B2.png)
 
-#### 4、运行 Jenkins 主体程序并初始化
+#### 4、Jenkins + svn 
+
+1、版本服务器如果你使用 svn 的话，因为 Jenkins 要去访问 svn ，所以需要配置一下版本库访问的账号和密码。
+
+2、svnserve.conf 文件中 anon-access 一定要打开注释并设置为 none   `anon-access=none`
+
+#### 5、应用服务器 tomcat 设置
+
+因为 Jenkins 需要去访问 tomcat ，因此为了安全性考虑，tomcat 需要设置用户名和密码及额外配置一些角色
+
+```xml
+<!-- 编辑 apache-tomcat-8.5.49/conf/tomcat-users.xml 配置文件,增加以下配置 -->
+<role rolename="manager-gui"/>
+<role rolename="manager-script"/>
+<role rolename="manager-jmx"/>
+<role rolename="manager-status"/>
+<user username="tomcat_user" password="123456" roles="manager-gui,manager-script,manager-jmx,manager-status"/>
+```
+
+#### 6、运行 Jenkins 主体程序并初始化
 
 **Jenkins 部署：**
 
@@ -66,10 +85,28 @@
 <Connector port="8080" protocol="HTTP/1.1"
                connectionTimeout="20000"
                redirectPort="8443" URIEncoding="UTF-8" />
-<!-- 加上 URIEncoding="UTF-8"  防止 get 请求提交时，参数乱码  -->
+<!-- 加上 URIEncoding="UTF-8"  防止 get 请求提交时，带中文请求参数,参数乱码  -->
 ```
 
 ③ 启动 tomcat 并访问 `ip:port/jenkins`
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

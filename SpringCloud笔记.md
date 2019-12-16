@@ -1516,13 +1516,200 @@ public class DeptConsumerApp {
 
 ### Hystrix 断路器
 
+#### 1、Hystrix 断路器是什么
+
+分布式系统面临的问题：
+
+> 复杂分布式体系结构中的应用程序有数十个依赖关系，每个依赖关系在某些时候将不可避免的失败。
+
+服务雪崩：
+
+> 多个微服务之间调用的时候，假设微服务A 调用微服务B 和 微服务C ，微服务B 和微服务C 又调用其他的微服务，这就是所谓的「扇出」。如果扇出的链路上某个微服务的调用响应时间过长或者不可用，对微服务A 的调用就会占用越来越多的系统资源，进而引起系统崩溃，所谓的「雪崩效应」。
+>
+> 对于高流量的应用来说，单一的后端依赖可能会导致所有服务器上的所有资源都在几秒钟内饱和。比失败更糟糕的是，这些应用程序还可能导致服务之间的延迟增加，备份队列，线程和其他系统资源紧张，导致整个系统发生更多的级联故障。这些都表示需要对故障和延迟进行隔离和管理，以便单个依赖关系的失败，不能取消整个应用程序或系统。
+
+**Hystrix 是什么？**
+
+> Hystrix 是一个用于处理分布式系统的延迟和容错的开源库，在分布式系统里，许多依赖不可避免的会调用失败，比如超时、异常等。Hystrix 能够保证在一个依赖出问题的情况下，不会导致整体服务失败，避免级联故障，以提高分布式系统的弹性。
+>
+> 断路器本身是一种开关装置，当某个服务单元发生故障之后，通过断路器的故障监控，向调用方返回一个符合预期的、可处理的备选响应（FallBack），而不是长时间的等待或者抛出调用方无法处理的异常，这样就保证了服务调用方的线程不会被长时间不必要的占用，从而避免了故障在分布式系统中的蔓延，乃至雪崩。
+
+#### 2、服务熔断
+
+**服务熔断是什么**
+
+> 熔断机制是应对雪崩效应的一种微服务链路保护机制。
+>
+> 当扇出链路的某个微服务不可用或者响应时间太长时，会进行服务的降级，进而熔断该节点微服务的调用，快速返回错误的响应信息。当检测到该节点微服务调用响应正常后恢复调用链路。在 Springcloud框架里熔断机制通过 Hystrix实现。 Hystrix 会监控微服务间的调用情况，当失败的调用到一定的阈值，缺省是 5 秒内 20 次调用失败就会启动熔断机制。熔断机制的注解是 `@HystrixCommand`
+
+步骤：
+
+① 参考 microservicecloud-provider-dept 工程，新建 microservicecloud-provider-dept-hystrix 工程（大致上是把原有工程复制一遍然后修改 pom 和 yml 配置文件）
+
+② 修改 pom 文件，增加 hystrix 依赖
+
+```xml
+<dependencies>
+        <!-- 引入自己定义的 api 通用包，这样就可以使用 Dept 部门 Entity -->
+        <dependency>
+            <groupId>com.hepingfly.springcloud</groupId>
+            <artifactId>microservicecloud-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>druid</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jetty</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>springloaded</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-eureka</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+	
+    	<!-- 增加 hystrix 依赖 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-hystrix</artifactId>
+        </dependency>
+    </dependencies>
+```
+
+③ 修改 yml 配置文件
+
+```yaml
+server:
+  port: 8001
+
+mybatis:
+  config-location: classpath:mybatis/mybatis.cfg.xml   
+  type-aliases-package: com.hepingfly.springcloud.entites
+  mapper-locations: classpath:mybatis/mapper/*.xml  
+
+spring:
+  application:
+    name: microservicecloud-dept
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource   
+    driver-class-name: org.gjt.mm.mysql.Driver
+    url: jdbc:mysql://192.168.31.128:3306/springcloud
+    username: root
+    password: 123
+eureka:
+  client:   
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka,http://eureka7003.com:7003/eureka
+  instance:
+    instance-id: microservicespringcloud-dept-hystrix     # 服务名称修改了一下，表明这个微服务是带熔断器的微服务
+    prefer-ip-address: false
+
+info:
+  app.name: hepingfly-microservicecloud
+  company.name: www.hepingfly.com
+  build.artifactId: $project.artifactId$
+  build.version: $project.version$
+```
+
+④ 修改 DeptController
+
+```java
+@RestController
+public class DeptController {
+
+    @Autowired
+    private DeptService deptService;
+    // 一旦调用服务方法失败并抛出了错误信息后，会自动调用 @HystrixCommand 标注好的 fallbackMethod 调用类中的指定方法
+    @HystrixCommand(fallbackMethod = "processHystrixGet")
+    @RequestMapping(value = "/dept/get/{id}",method = RequestMethod.GET)
+    public Dept get(@PathVariable("id") Long id) {
+        return deptService.get(id);
+    }
+
+    public Dept processHystrixGet(@PathVariable("id") Long id) {
+        // 这里可以定义自己需要返回的内容
+        return new Dept();
+    }
 
 
+}
+```
 
+⑤ 修改主启动类
 
+```java
+@SpringBootApplication
+@EnableEurekaClient      // 加上这个注解后，本服务启动后会自动注册进 eureka 服务中
+@EnableDiscoveryClient   // 服务发现
+@EnableCircuitBreaker  // 对 hystrixR熔断机制的支持
+public class DeptProviderApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptProviderApp.class,args);
+    }
+}
+```
 
+⑥ 测试
 
-
+> 1、先启动 3 个 eureka server
+>
+> 2、启动 DeptProviderApp  主启动类
+>
+> 3、启动一个消费者，访问消费者，消费者会去调用加了 hystrix 了服务提供者，一旦报错对执行对应的方法
 
 
 

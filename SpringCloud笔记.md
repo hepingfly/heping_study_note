@@ -1711,13 +1711,146 @@ public class DeptProviderApp {
 >
 > 3、启动一个消费者，访问消费者，消费者会去调用加了 hystrix 了服务提供者，一旦报错对执行对应的方法
 
+#### 3、服务降级
 
+**服务降级是什么**
 
+> 整体资源块不够了，忍痛将某些服务先关掉，待渡过难关，再开启回来
 
+**注：**
 
+服务降级处理是在客户端实现完成的，与服务端没有关系
 
+**服务熔断和服务降级：**
 
+> 服务熔断：
+>
+> 服务熔断的作用类似于我们家用保险丝，当某服务出现不可用或响应超时情况时，为了防止整个系统雪崩，暂时停止对该服务的调用。
+>
+> 服务降级：
+>
+> 服务降级是从整个系统的负荷情况出发和考虑的，对某些负荷会比较高的情况，为了预防某些功能（业务场景）出现负荷过载或者响应慢的情况，在其内部暂时舍弃对一些非核心的接口和数据的请求，而直接返回一个提前准备好的 fallback（退路）错误处理信息。这样虽然提供的是一个有损服务，但却保证了整个系统的稳定性和可靠性。
+>
+> 相同点：
+>
+> - 都是从系统的可用性和可靠性出发，为了防止系统崩溃
+> - 最终让用户体验到的都是某些功能暂时不可用
+>
+> 不同点：
+>
+> - 触发的原因不同，服务熔断一般是某个服务（下游服务）不可用引起的，而服务降级一般是从整体负荷考虑。
 
+上面服务熔断的方式：
+
+```java
+@RestController
+public class DeptController {
+
+    @Autowired
+    private DeptService deptService;
+    @HystrixCommand(fallbackMethod = "processHystrixGet")
+    @RequestMapping(value = "/dept/get/{id}",method = RequestMethod.GET)
+    public Dept get(@PathVariable("id") Long id) {
+        return deptService.get(id);
+    }
+
+    public Dept processHystrixGet(@PathVariable("id") Long id) {
+        return new Dept();
+    }
+}
+// 这种方式其实有问题，因为我每写一个方法就要有一个 fallbackMethod 与之对应，这样方法多了以后，就很容易造成方法膨胀。并且处理异常的方法和你业务逻辑方法绑定在一起,造成高耦合,程序可维护性不好。
+```
+
+步骤：
+
+① 修改 microservicecloudapi 工程，根据已有的 DeptClientService 接口，新建一个实现了 FallbackFactory 接口的类 DeptClientServiceFallbackFactory 
+
+```java
+/**
+ * 这就相当于把 DeptClientService 里面每一个方法的 fallback 方法统一
+ * 写在这个类里面,在这个类里面处理,这样就可以和业务方法进行解耦
+ */
+@Component  // 这个注解千万不能忘记添加
+public class DepartClientServiceFallbackFactory implements FallbackFactory<DeptClientService> {
+    @Override
+    public DeptClientService create(Throwable throwable) {
+        return new DeptClientService() {
+            @Override
+            public Dept get(long id) {
+                return new Dept();
+            }
+
+            @Override
+            public List<Dept> list() {
+                return null;
+            }
+
+            @Override
+            public boolean add(Dept dept) {
+                return false;
+            }
+        };
+    }
+}
+```
+
+② 修改 microservicecloudapi 工程，DeptClientService 接口，在注解 @FeignClient 中添加 fallbackFactory 属性
+
+```java
+@FeignClient(value = "MICROSERVICECLOUD-DEPT",fallbackFactory = DepartClientServiceFallbackFactory.class)  // 添加 fallbackFactory 属性,去指定统一处理熔断的类
+public interface DeptClientService {
+
+    @RequestMapping(value = "/dept/get/{id}",method = RequestMethod.GET)
+    public Dept get(@PathVariable("id") long id);
+
+    @RequestMapping(value = "/dept/list", method = RequestMethod.GET)
+    public List<Dept> list();
+
+    @RequestMapping(value = "/dept/add", method = RequestMethod.POST)
+    public boolean add(Dept dept);
+}
+
+// 假如 DeptClientService 中的方法,调用出异常了,那么就会去找 fallbackFactory, fallbackFactory 指定了统一处理熔断的类 DepartClientServiceFallbackFactory,这个类中的方法会帮忙兜底。
+```
+
+③ 把  microservicecloudapi 工程进行重新 clean install，这样别的工程就可以进行调用到最新的包
+
+④ 修改 microservicecloudconsumer-dept-feign 工程，修改 yml 配置文件
+
+```yaml
+server:
+  port: 8002
+eureka:
+  client:
+    register-with-eureka: false
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka/,http://eureka7002.com:7002/eureka/,http://eureka7003.com:7003/eureka/
+feign:         # 添加这个注解,开启 hystrix
+  hystrix:
+    enabled: true
+```
+
+⑤ 测试
+
+> 1）、先启动 3 个 eureka 服务
+>
+> 2）、启动 microservicecloud-provider-dept 微服务
+>
+> 3）、启动 microservicecloudconsumer-dept-feign 微服务
+>
+> 4）、正常访问测试
+>
+> 5）、故意关闭微服务  microservicecloud-provider-dept
+>
+> 6）、会发现客户端会有自己调用提示（此时服务端 provider 已经 down 了，但是我们做了服务降级处理，让客户端在服务端不可用时也会获得提示信息而不会挂起耗死服务器）
+
+### 服务监控
+
+#### 1、hystrixDashboard
+
+**概述：**
+
+> 除了隔离依赖服务的调用以外，Hystrix 还提供了准实时的调用监控（Hystrix Dashboard），Hystrix 会持续的记录所有通过 Hystrix 发起的请求的执行信息，并以统计报表和图形的形式展示给用户，包括每秒执行多少请求，多少成功多少失败等。Netflix 通过 hystrix-metrics-event-stream 项目实现了对以上指标的监控。SpringCloud 也提供了 Hystrix Dashboard 的整合，对监控内容转换成可视化界面。
 
 
 

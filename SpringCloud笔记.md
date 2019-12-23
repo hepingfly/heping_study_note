@@ -1852,9 +1852,73 @@ feign:         # 添加这个注解,开启 hystrix
 
 > 除了隔离依赖服务的调用以外，Hystrix 还提供了准实时的调用监控（Hystrix Dashboard），Hystrix 会持续的记录所有通过 Hystrix 发起的请求的执行信息，并以统计报表和图形的形式展示给用户，包括每秒执行多少请求，多少成功多少失败等。Netflix 通过 hystrix-metrics-event-stream 项目实现了对以上指标的监控。SpringCloud 也提供了 Hystrix Dashboard 的整合，对监控内容转换成可视化界面。
 
+步骤：
 
+① 新建工程 microservicecloudconsumer-hystrix-dashboard 工程
 
+② pom 文件
 
+```xml
+<!-- 加上以下注解 -->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-hystrix</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-hystrix-dashboard</artifactId>
+</dependency>
+<!-- 监控系统健康情况 -->
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+```
+
+③ 主启动类
+
+```java
+@SpringBootApplication
+@EnableHystrixDashboard
+public class DeptConsumer_DashBoardApp {
+    public static void main(String[] args) {
+        SpringApplication.run(DeptConsumer_DashBoardApp.class,args);
+    }
+}
+```
+
+**我这个微服务是进行服务监控功能的，所以所有 Provider 微服务提供类，都需要监控依赖配置，就是 `spring-boot-starter-actuator` 这个 pom 依赖，所有的 provider 微服务提供类都要有。**
+
+④ 启动 microservicecloudconsumer-hystrix-dashboard 。然后访问 `http://localhost:9001/hystrix` 出现豪猪界面，就证明服务启动成功。
+
+⑤ 启动 3 个 eureka 集群
+
+⑥ 启动 microservicecloud-provider-dept-hystrix（端口号是 8001） ，启动这个带熔断服务的服务提供者。所以现在我们一共启动了 5 个微服务，3 个eureka微服务，一个带熔断服务的服务提供者，还有一个  hystrix-dashboard进行服务监控，9001 端口现在去监控 8001 服务
+
+⑦ 服务提供者微服务是去访问了数据库，所以你可以访问这个接口 `http://localhost:8001/dept/get/1` （这个是服务提供者 controller 里面的接口），观察监控窗口。
+
+> 在豪猪监控页面你可以填写监控地址：
+>
+> 如 ：   `http://localhost:8001/hystrix.stream`    其中 ip 和端口是你要监控的微服务的  ip 和端口
+>
+> 监控结果的图形化展示：
+>
+> - 实心圆
+>   - 共有两种含义。它通过颜色的变化代表了实例的健康程度，它的健康度从 绿色 < 黄色 < 橙色 < 红色 递减。该实心圆除了颜色变化之外，它的大小也会根据实例的请求流量发生变化，流量越大该实心圆就越大。所以通过实心圆的展示，就可以在大量实例中快速的发现故障实例和高压力实例。
+> - 曲线：
+>   - 用来记录 2 分钟内流量的相对变化，可以通过它来观察到流量的上升和下降趋势。
+
+### zuul 路由网关
+
+#### 1、zuul 是什么
+
+> Zuul 包含了对请求的路由和过滤两个最主要的功能：
+>
+> 其中路由功能负责将外部请求转发到具体的微服务实例上，是实现外部访问统一入口的基础，而过滤器功能则负责对请求的处理过程进行干预，是实现请求校验、服务聚合等功能的基础。zuul 和 eureka 进行整合，需要将 zuul 自身注册为 eureka 服务治理下的应用，同时从 eureka 中获得其他微服务的消息，也即以后的访问微服务都是通过 zuul 跳转后获得。
+>
+> **注：**
+>
+> zuul 服务最终还是会注册进 Eureka
 
 
 

@@ -1920,6 +1920,211 @@ public class DeptConsumer_DashBoardApp {
 >
 > zuul 服务最终还是会注册进 Eureka
 
+#### 2、zuul 路由基本配置
+
+步骤：
+
+① 新建工程 microservicecloud-zuul-gateway 
+
+② pom 文件修改
+
+```xml
+<dependencies>
+        <!--zuul 路由网关-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-zuul</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+        </dependency>
+
+        <!--修改后立即生效，热部署-->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>springloaded</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+        </dependency>
+
+        <!--将微服务 provider 注册进 eureka-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-eureka</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+
+        <!--actuator 监控-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!--hystrix 容错-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-hystrix</artifactId>
+        </dependency>
+    </dependencies>
+```
+
+③ yml 配置文件
+
+```yaml
+server:
+  port: 9527
+spring:
+  application:
+    name: microservicecloud-zuul-gateway  # 注册进 eureka 中唯一微服务名字
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka,http://eureka7003.com:7003/eureka
+  instance:
+    instance-id: myzuul
+    prefer-ip-address: true
+```
+
+**注：**
+
+这里需要配置一下 host 文件     127.0.0.1    myzuul
+
+④ 主启动类
+
+```java
+@SpringBootApplication
+@EnableZuulProxy   // 开启 zuul 代理
+public class ZuulSpringCloudApp {
+    public static void main(String[] args) {
+        SpringApplication.run(ZuulSpringCloudApp.class, args);
+    }
+}
+```
+
+⑤ 先启动 3 个 eureka 集群，一个服务提供类 microservicecloud-provider-dept， 一个路由服务 microservicecloud-zuul-gateway 
+
+⑥ 测试
+
+> 不用路由：
+>
+> 访问 `http://localhost:8001/dept/get/2`   相当于直接访问服务提供者
+>
+> 启用路由：
+>
+> 访问 `http://myzuul:9527/microservicecloud-dept/dept/get/2`
+>
+> myzuul 是 zuul 注册到 eureka 中的实例名，9521 是 zuul 微服务端口号，microservicecloud-dept 是服务提供者注册到 eureka 中的实例名，/dept/get/2   是 restful 风格的地址。也就是说你去访问 zuul 地址，然后 zuul 在 eureka 中找到了一个叫 microservicecloud-dept 的微服务，然后去访问它 dept/get/2   restful 地址。
+>
+> 所以可以分为三段：
+>
+> `myzuul:9527`  ：网关地址
+>
+> `microservicecloud-dept` ：真实微服务地址
+>
+> `dept/get/2`：具体 rest 风格地址
+
+#### 3、zuul 路由访问映射规则
+
+> 使用 zuul 后，我们访问服务，可以这么访问：`http://myzuul:9527/microservicecloud-dept/dept/get/2`
+>
+> 但是 microservicecloud-dept 是真实的微服务地址，我们不想把它暴露在外面，所以我们可以配置一个映射规则。
+
+方法就是修改 zuul 所在微服务的 yml 配置文件，增加路由映射规则：
+
+```yaml
+server:
+  port: 9527
+spring:
+  application:
+    name: microservicecloud-zuul-gateway  # 注册进 eureka 中唯一微服务名字
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka,http://eureka7003.com:7003/eureka
+  instance:
+    instance-id: gateway.com
+    prefer-ip-address: true
+
+# 配置 zuul 路由映射规则
+zuul:
+  routes:
+    mydept.serviceId: microservicecloud-dept
+    mydept.path: /mydept/**
+```
+
+> 之前我们是这么访问接口的：
+>
+> `http://myzuul:9527/microservicecloud-dept/dept/get/2`
+>
+> 配置完路由映射规则就可以这么访问：
+>
+> `http://myzuul:9527/mydept/dept/get/2`
+>
+> 但是这样也会存在问题：
+>
+> 就是通过配置的路由映射规则地址可以访问服务，但是原有通过具体微服务名字（`http://myzuul:9527/microservicecloud-dept/dept/get/2`） 这种也还可以访问。如果希望只能通过配置的路由映射地址去访问，那么需要加一下配置：
+>
+> ```yaml
+> # 配置 zuul 路由映射规则
+> zuul:
+>   routes:
+>     mydept.serviceId: microservicecloud-dept  # 配置具体微服务名称和路径的映射关系
+>     mydept.path: /mydept/**
+>   ignored-services: microservicecloud-dept   # 加了这个就不能通过具体的微服务名字 microservicecloud-dept  去访问了(忽略原真实服务名)
+>   
+> #------------------------------------------------------------------------------------
+> zuul:
+>   routes:
+>     mydept.serviceId: microservicecloud-dept  
+>     mydept.path: /mydept/**
+>   ignored-services: "*"     # 假如你想忽略多个,就可以这么写
+> ```
+>
+> 另外访问地址可以**设置统一前缀**：
+>
+> 比如我这几个微服务都部署在北京，那么我想用 beijing 作为前缀，那么久可以这么配置：
+>
+> ```yaml
+> zuul:
+>   routes:
+>     mydept.serviceId: microservicecloud-dept
+>     mydept.path: /mydept/**
+>   ignored-services: microservicecloud-dept
+>   prefix: /beijing      # 这个配置就表示访问的时候 url 都要加上 /beijing 作为前缀
+>   
+>   # 如原来是这么访问的：http://myzuul:9527/mydept/dept/get/2
+>   # 现在访问方式就变成：http://myzuul:9527/beijing/mydept/dept/get/2
+> ```
+>
+> 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

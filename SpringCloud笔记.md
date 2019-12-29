@@ -2119,7 +2119,7 @@ zuul:
 
 > 微服务意味着要将单体应用中的业务拆分成一个个子服务，每个服务的粒度相对较小，因此系统中会出现大量的服务。由于每个服务都需要必要的配置信息才能运行，所以一套集中式的、动态的配置管理设施是必不可少的。Springcloud 提供了 ConfigServer 来解决这个问题。（每一个微服务都会有一个 application.yml 配置文件，如果有上百个微服务，如果不能统一管理的话，就会很痛苦）
 
-是什么：
+**是什么：**
 
 > SpringCloud config 为微服务架构中的微服务提供集中化的外部配置支持，配置服务器为各个不同微服务应用的所有环境提供了一个中心化的外部配置。
 >
@@ -2131,13 +2131,133 @@ zuul:
 >
 > 配置服务器默认采用 git 来存储配置信息，这样就有助于对环境配置进行版本管理，并且可以通过 git 客户端工具来方便的管理和访问配置内容
 
+#### 2、spring cloud config 服务端与 github 通信
 
+![config与github服务端通信](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-springcloud/config%E4%B8%8E%E6%9C%8D%E5%8A%A1%E7%AB%AF%E9%80%9A%E4%BF%A1.png)
 
+SpringCloud config 服务端配置步骤：
 
+① 用自己的 github 账号在 github 上新建一个名为 microservicecloud-config 的新 Repository
 
+② 由上一步获得 SSH 协议的 git 地址
 
+③在本地硬盘上新建 git仓库并克隆 github 上的仓库到本地
 
+⑤ 在本地 git 仓库文件夹里面新建一个 application.yml
 
+```yaml
+spring:
+  profiles:
+    active:
+     - dev
+
+---
+spring:
+  profiles: dev   # 开发环境
+  application:
+    name: microservicecloud-config-dev
+
+---
+spring:
+  profiles: test   # 测试环境
+  application:
+    name: microservicecloud-config-test
+
+# 注意将这个文件保存为 UTF-8 格式
+```
+
+⑥ 将上一步的 application.yml 文件推送到 github 上
+
+> ⑤ 和 ⑥ 两步就相当于我维护了一个公共的文件，这个文件我可以在本地修改，然后推送到 github 上。github 上的这个份配置文件提供给 springcloud config 微服务去读取连接。
+
+⑦ 新建微服务 microservicecloud-config ，它即为 springCloud 的配置中心模块
+
+⑧ pom 文件
+
+```xml
+<dependencies>
+        <!-- springcloud Config -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-config-server</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>springloaded</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-eureka</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+    </dependencies>
+```
+
+⑨ yml 配置文件
+
+```yaml
+server:
+  port: 3344
+spring:
+  application:
+    name: microservicecloud-config
+  cloud:
+    config:
+      server:
+        git:
+          uri: git@github.com:hepingfly/microservicecloud-config.git  # github 上面的 git 仓库名字
+
+```
+
+⑩ 主启动类
+
+```java
+@EnableConfigServer
+@SpringBootApplication
+public class ConfigSpringCloudApp {
+    public static void main(String[] args) {
+        SpringApplication.run(ConfigSpringCloudApp.class,args);
+    }
+}
+```
+
+①① 测试通过 config 微服务是否可以从 github 获取配置内容
+
+> 首先启动端口号是 3344 的 config 微服务，然后访问：
+>
+> `http://127.0.0.1:3344/application-dev.yml`
+>
+> `http://127.0.0.1:3344/application-test.yml`
+>
+> 可以返回 github 上配置信息就表示成功。
+
+**综上：**
+
+通过以上步骤，我们就成功实现了用 SpringCloud Config 通过 Github 获取配置信息
 
 
 

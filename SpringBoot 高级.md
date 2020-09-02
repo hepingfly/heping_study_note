@@ -93,6 +93,164 @@ public Employee getEmployee(Integer id) {
 | argument name | evaluation context | 方法参数的名字，可以直接使用 `#参数名` ，也可以使用 `#p0` 或 `#a0` 的形式，0 代表参数的索引。 | `#a0`                  |
 | result        | evaluation context | 方法执行后的返回值（仅当方法执行后的判断有效）               | `#result`              |
 
+#### 4、@cacheable 运行流程
+
+```
+1、方法运行之前，先去查询 Cache（缓存组件），按照 cacheNames 指定的名字去获取 cache组件。第一次获取缓存如果没有 cache 组件会自动创建。(这个 Cache 组件是通过 CacheManager 去获取的)
+
+2、去 cache 中查找缓存的内容，使用一个 key，默认就是方法的参数。 key 是按照某种策略生成的，默认是使用 keyGenerator 生成的，这个 keyGenerator 默认使用 SimpleKeyGenerator 生成 key
+
+3、没有查到缓存就调用目标方法
+
+4、将目标方法返回的结果，放进缓存中
+
+--------------------------------
+总结一下比较重要的两点：
+1）、使用 CacheManager(默认使用的是 ConcurrentMapCacheManager) 按照名字得到 Cache（这个 cache 默认是 ConcurrentMapCache）组件
+2）、key 使用 keyGenerator 生成的，默认是 SimpleKeyGenerator
+```
+
+#### 5、@cacheable 其他属性
+
+① `cacheNames` 
+
+用来指定缓存组件的名字，将方法的返回结果放在哪个缓存中，可以是数组的方式，支持指定多个缓存。
+
+```java
+@Cacheable(cacheNames = "emps")  // 或者这么写 @Cacheable(cacheNames = {"emps","heping"}) 
+public Employee getEmployee(Integer id) {
+    System.out.println("查询" + id);
+    Employee employee = employeeMapper.getEmpById(id);
+    return employee;
+}
+```
+
+② `key` 
+
+缓存数据时使用的 key。默认使用的是方法参数的值。可以使用 spEL 表达式去编写。
+
+```java
+@Cacheable(cacheNames = "emps", key = "#root.methodName + '[' + #id + ']'")
+// 比如这里的 Key 我想用 getEmployee[2]  这样的，可以使用拼接去完成(这里用了 spEL 表达式语法)
+public Employee getEmployee(Integer id) {
+    System.out.println("查询" + id);
+    Employee employee = employeeMapper.getEmpById(id);
+    return employee;
+}
+```
+
+③ keyGenerator
+
+key 的生成器，可以自己指定 key 的生成器，通过这个生成器来生成 key。
+
+```java
+/**
+ * 自定义 keyGenerator，这样就可以按照我们自定的方式去生成
+ * @auther hepingfly
+ * @date 2020/8/31 5:41 下午
+ */
+@Configuration
+public class MyCacheConfig {
+    @Bean("myKeyGenerator")
+    public KeyGenerator keyGenerator() {
+        return new KeyGenerator() {
+            @Override
+            public Object generate(Object o, Method method, Object... params) {
+                return method.getName() + "[" + Arrays.asList(params).toString() + "]";
+            }
+        };
+    }
+}
+```
+
+```java
+@Cacheable(cacheNames = "emps", keyGenerator = "myKeyGenerator")  // 这里 keyGenerator 的值写我们自定义的 keyGenerator
+public Employee getEmployee(Integer id) {
+    System.out.println("查询" + id);
+    Employee employee = employeeMapper.getEmpById(id);
+    return employee;
+}
+```
+
+④ `condition`
+
+符合条件的情况下才缓存。方法返回的数据要不要缓存，可以做一个动态判断。
+
+```java
+@Cacheable(cacheNames = "emps", condition = "#id > 1")  // 这里就表示 id 值大于 1 我才进行缓存
+public Employee getEmployee(Integer id) {
+    System.out.println("查询" + id);
+    Employee employee = employeeMapper.getEmpById(id);
+    return employee;
+}
+```
+
+⑤ `unless`
+
+否定缓存。当 unless 指定的条件为 true ，方法的返回值就不会被缓存。
+
+```java
+@Cacheable(cacheNames = "emps", unless = "#id > 1")  // 这样 id 值大于 1 的都不会被缓存
+public Employee getEmployee(Integer id) {
+    System.out.println("查询" + id);
+    Employee employee = employeeMapper.getEmpById(id);
+    return employee;
+}
+```
+
+⑥ `sync`
+
+是否使用异步模式。默认是方法执行完，以同步的方式将方法返回的结果存在缓存中。
+
+#### 6、@CachePut 使用
+
+标识了这个注解就会既调用方法，又更新缓存数据。主要应用场景就是：修改了数据库的某个数据，同时更新缓存。
+
+这里需要注意 @CachePut  和 @Cacheable 这两个注解的运行时机是不同的：
+
+> - @Cacheable 是在调用方法之前先去缓存里面看有没有指定 key 的数据，如果有直接用缓存，没有才去调用方法。
+> - @CachePut  是先调用方法，调用完方法后再将结果放进缓存中。
+
+```java
+/**
+     * @CachePut 注解，既调用方法，又更新缓存数据
+     * 运行时机：
+     * 1、先调用目标方法
+     * 2、将目标方法的结果缓存起来
+     * @author hepingfly
+     * @date  2020/9/3 12:22 上午
+     * @param employee
+     * @return
+     */
+    @CachePut(value = "emps",key = "#employee.id")
+    public Employee updateEmp(Employee employee) {
+        employeeMapper.updateEmp(employee);
+        return employee;
+    }
+```
+
+**这里需要注意的点是：**
+
+> 你需要去指定一下 key，这样更新完数据后，才能按照你指定的 key 去覆盖数据。如果你这里不指定 key ，那么数据更新完，就会把入参当成 key 去更新缓存，这样就可能造成缓存数据未覆盖更新情况。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

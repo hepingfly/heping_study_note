@@ -233,6 +233,28 @@ public Employee getEmployee(Integer id) {
 
 > 你需要去指定一下 key，这样更新完数据后，才能按照你指定的 key 去覆盖数据。如果你这里不指定 key ，那么数据更新完，就会把入参当成 key 去更新缓存，这样就可能造成缓存数据未覆盖更新情况。
 
+#### 7、@CacheEvict 注解使用
+
+这个注解的使用场景就是：我删除了一个数据，那么同时也就需要在缓存中把这个数据同时删除。
+
+```java
+    /**
+     * @CacheEvict 缓存清除
+     * 1、需要通过 key 来指定要清除的数据
+     * 2、可以通过指定 allEntries = true 把缓存中所有的 key 都删除
+     * 3、beforeInvocation = false 表示缓存的清除是否在方法之前执行
+     * 默认是缓存在方法执行之后执行清除操作，这样如果出现异常，缓存就不会清除
+     * @author hepingfly
+     * @date  2020/9/3 11:42 下午
+     * @param id
+     * @return
+     */
+    @CacheEvict(cacheNames = "emps", key = "#id", allEntries = true,beforeInvocation = false)  // #id 表示获取参数 id 的值
+    public void deleteEmp(Integer id) {
+        employeeMapper.deleteEmpById(id);
+    }
+```
+
 
 
 

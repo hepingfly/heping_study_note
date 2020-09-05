@@ -222,7 +222,7 @@ public Employee getEmployee(Integer id) {
      * @param employee
      * @return
      */
-    @CachePut(value = "emps",key = "#employee.id")
+    @CachePut(value = "emps",key = "#employee.id") // 这里用参数的 id 作为 key
     public Employee updateEmp(Employee employee) {
         employeeMapper.updateEmp(employee);
         return employee;
@@ -254,6 +254,73 @@ public Employee getEmployee(Integer id) {
         employeeMapper.deleteEmpById(id);
     }
 ```
+
+**比较重要的两个属性总结：**
+
+> - `allEntries`  ：可以通过指定 allEntries = true 把缓存中所有的 key 都删除。
+> - `beforeInvocation` ：beforeInvocation = false 表示缓存的清除是否在方法之前执行。默认是缓存在方法执行之后执行清除操作，这样如果出现异常，缓存就不会清除。
+
+#### 8、@Caching 和 @CacheConfig 注解使用
+
+1）、`@Caching`  注解使用
+
+可以使用 `@Caching` 注解来定义复杂的缓存规则
+
+```java
+/**
+     * 可以用这个 @Caching 注解来定义复杂的缓存规则
+     * @author hepingfly
+     * @date  2020/9/5 9:07 下午
+     * @param lastName
+     * @return
+     */
+    @Caching(
+          cacheable = {
+                  @Cacheable(value = "emps", key = "#lastName")
+          },
+            put = {
+                  @CachePut(value = "emps", key = "#result.id"),
+                    @CachePut(value = "emps", key = "#result.email")
+
+            }
+    )
+    public Employee getEmpByLastName(String lastName) {
+        return employeeMapper.getEmpByLastName(lastName);
+    }
+```
+
+2）、`@CacheConfig`  使用
+
+一般我们在方法是标注缓存相关的注解时候，都需要指定 key 。这样如果方法比较多，在每个方法上都指定 key ，显得比较冗余，就可以把指定 key 的操作通过 `@CacheConfig`   来统一指定 key ，标识在类上。这样这个类中每个方法都会统一用这个 key，就不需要在每个方法上都指定。
+
+```java
+@Service
+@CacheConfig(cacheNames = "emps")  // 这样这个类中所有的方法都会使用 emps 作为 key。就不用在每个方法上都指定一次了。
+public class EmployeeService {
+}
+```
+
+**注：**
+
+> 上面用到的注解，默认使用的都是 ConcurrentMapCache ，将数据保存在 ConcurrentMap 中。但是我们在开发中一般都会使用一些缓存的中间件，像 redis 、memcached、ehcache
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

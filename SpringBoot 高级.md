@@ -393,13 +393,118 @@ topic 交换器通过模糊匹配分配消息的路由键属性，将路由键�
 
 ### 四、SpringBoot 与定时任务
 
+#### 1、SpringBoot 异步任务
+
+**两个重要的注解：**
+
+> - `@Async`
+>   - 标注在需要异步执行的方法上
+> - @`EnableAsync`
+>   - 标注在 springboot 的主启动类上，用于开启基于注解的异步任务
+
+1）、先说一下不用异步任务的情况：
+
+```java
+// SpringBoot 主启动类
+@SpringBootApplication  
+public class SpringbootApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SpringbootApplication.class, args);
+    }
+}
+
+//--------------------------------controller----------------------------------------------
+@RestController
+public class AsyncController {
+    @Autowired
+    private AsyncService asyncService;
+
+    @GetMapping("/helloHepingFly")
+    public String helloHepingFly() {
+        asyncService.helloHeping();
+        return "success";
+    }
+}
+
+//--------------------------------service----------------------------------------------
+@Service
+public class AsyncService {
+    public void helloHeping() {
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("hello hepingfly...");
+    }
+}
+```
+
+上面的 controller 我调用了 service 里面的方法，调用完成之后，返回给页面一个  success 的字符串。但是 service 里面的方法我让他睡眠了 3 秒钟，如果采用同步的方式（也就是上面写的那种方式），我必须等 service 里面的方法执行完之后，才能给页面返回 success 字符串。
+
+2）、下面看下使用异步任务的情况：
+
+```java
+// SpringBoot 主启动类
+@SpringBootApplication  
+@EnableAsync    // 开启异步任务
+public class SpringbootApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(SpringbootApplication.class, args);
+    }
+}
+
+//--------------------------------controller----------------------------------------------
+@RestController
+public class AsyncController {
+    @Autowired
+    private AsyncService asyncService;
+
+    @GetMapping("/helloHepingFly")
+    public String helloHepingFly() {
+        asyncService.helloHeping();
+        return "success";
+    }
+}
+
+//--------------------------------service----------------------------------------------
+@Service
+public class AsyncService {
+    /*
+     * 异步任务在开发中使用还是比较频繁的，例如我们在发送邮件或者处理一些数据的时候
+     * 我们不想让它阻塞之后的线程，这时候就可以使用多线程的方式去进行异步处理
+     */
+    @Async   // 标识这个方法异步执行
+    public void helloHeping() {
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("hello hepingfly...");
+    }
+}
+```
+
+上面的这种情况我采用了异步调用的方式，我 Controller 里面方法在调用 Service 里面的方法时，由于 Service 的方法标识了异步方法，所以我就可以在给页面返回  success 字符串的同时去执行 helloHeping 这个方法，就没有必要等这个方法执行完毕后，在返回 success 字符串给页面。
+
+**总结：**
+
+> 使用 springboot 异步任务主要两步：
+>
+> 1、在需要异步执行的方法上标注上 `@Async` 
+>
+> 2、在 springboot 的主启动类上标注 `@EnableAsync`  开启异步任务
+
+
+
 
 
 #### 2、定时任务
 
 在项目开发中经常需要执行一些定时任务，比如需要在每天凌晨的时候，分析前一天的日志信息。 Spring 为我们提供了异步执行任务调度的方式，提供了 `TaskExecutor`、`TaskScheduler` 接口。
 
-两个重要的注解：
+**两个重要的注解：**
 
 > - `@Scheduled`
 >   - 标注在需要开启定时任务的方法上

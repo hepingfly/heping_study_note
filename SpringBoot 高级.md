@@ -385,7 +385,7 @@ Exchage 分发消息时根据类型的不同分发策略有区别，目前共有
 
 topic 交换器通过模糊匹配分配消息的路由键属性，将路由键和某个模式进行匹配，此时队列需要绑定到一个模式上。它将路由键和绑定键的字符串切分成单词，这些**单词之间用点隔开** 。它会识别两个通配符，「`#`」 表示匹配 0 个或多个单词，「`*`」匹配一个单词。
 
-####
+
 
 ### 三、SpringBoot 与检索
 
@@ -583,7 +583,70 @@ cron 表达式写法示例：
 ⑨ 0 0 2-4 ? * 1#1			每个月的第一个周一凌晨 2 点到 4 点之间,每个整点都执行一次
 ```
 
+#### 3、邮件任务
 
+
+
+![发邮件过程](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-springboot%E9%AB%98%E7%BA%A7/%E5%8F%91%E9%82%AE%E4%BB%B6%E7%9A%84%E8%BF%87%E7%A8%8B.png)
+
+说一下发邮件的过程：
+
+> 比如现在我有两个账号， `heping@qq.com`  想要给 `fly@163.com`  这个账号发送邮件，那么它不是直接给对方发送邮件，而是需要先使用用户名和密码登录 qq 邮件服务器，和 qq 邮箱服务器建立连接之后，把邮件内容发送到 qq 邮件服务器。然后由 qq 邮件服务器把邮件内容发送给 163 邮箱服务器，然后等 `fly@163.com` 这个用户上线之后，再从 163 服务器获取到邮件内容。   
+
+案例代码：
+
+①配置文件
+
+```properties
+#  application.properties
+
+# 发件人的邮箱用户名
+spring.mail.username=475916980@qq.com  
+# 发件人的密码，注意这里是生成的授权码(qq邮箱，设置--账户--生成授权码)
+spring.mail.password=pxdzhzinhqzebidb
+# 发件人邮箱服务器 host 地址
+spring.mail.host=smtp.qq.com
+#  如果不配置这个，发送邮件的时候会报 530 错误（意思是需要你配置一个安全的链接）
+spring.mail.properties.mail.smtp.ssl.enable=true
+```
+
+② 发送邮件代码
+
+```java
+@SpringBootTest
+public class TestA {
+    // 通过注入这个实现类来帮助我们发送邮件
+    @Autowired
+    JavaMailSenderImpl mailSender;
+    @Test
+    public void test1() {
+        // 发送简单邮件
+        SimpleMailMessage simpleMailMessage = new SimpleMailMessage();
+        simpleMailMessage.setSubject("开会");
+        simpleMailMessage.setText("讨论方案");
+        simpleMailMessage.setTo("hpshen1996@163.com");
+        simpleMailMessage.setFrom("475916980@qq.com");
+        mailSender.send(simpleMailMessage);
+    }
+
+    @Test
+    public void test2() throws Exception{
+        // 发送复杂邮件
+        // 创建一个复杂的消息邮件
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        // 第二个布尔类型参数指定是否需要上传文件
+        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true);
+        helper.setSubject("开会");
+        // 这里的邮件正文内容可以传一个 html 字符串，通过第二个参数指定是否是 html 文本
+        helper.setText("<b style='color:red'>讨论方案</b>",true);
+        helper.setTo("hpshen1996@163.com");
+        helper.setFrom("475916980@qq.com");
+        // 上传文件，这里可以 add 多个文件
+        helper.addAttachment("图片",new File("/Users/hepingfly/Desktop/发邮件的过程.png"));
+        mailSender.send(mimeMessage);
+    }
+}
+```
 
 
 

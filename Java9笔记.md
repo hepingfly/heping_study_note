@@ -55,7 +55,7 @@
 
 ③ 我们在 `java9A` 模块的 `src` 目录下新建 `module-info.java ` 文件
 
-```
+```java
 module java9A {
     // 这里 exports 后面跟具体的包名
     exports com.hepingfly.bean;
@@ -64,7 +64,7 @@ module java9A {
 
 ④ 我们在 `java9B` 模块的 `src` 目录下新建 `module-info.java ` 文件
 
-```
+```java
 module java9demo {
     // requires 后面跟具体要引入的 module 的名字
     requires java9A;
@@ -83,4 +83,73 @@ public class ModuleTest {
     }
 }
 ```
+
+#### 3、jshell 命令的使用
+
+1）、产生的背景
+
+像 Python 和 Scala 之类的语言早就有交互式编程环境 REPL（read-evaluate-print-loop）了，以交互的方式对语句和表达式进行求值。开发者只需要输入一些代码，就可以在编译前获得对程序的反馈。而之前的 Java 版本要想执行代码，必须创建文件、声明类、提供测试方法方可实现。
+
+2）、jshell 简单介绍
+
+在 Java9 中终于拥有了 REPL 工具：jShell 。利用 jshell 可以在没有创建类的情况下直接声明变量，计算表达式，执行语句。即开发时可以在命令行里直接运行 Java 代码，无需创建 Java 文件。
+
+3）、基本使用
+
+① JDK9 以上的版本如果你配置好了环境变量直接在命令行输入 `jshell` 即可进入交互界面（原因是 `JDK` 的 `bin` 目录下有 `jshell` 这个工具）
+
+![进入 jshell 交互模式](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/%E8%BF%9B%E5%85%A5jshell%E4%BA%A4%E4%BA%92%E6%A8%A1%E5%BC%8F.png)
+
+② 输入命令获得帮助信息
+
+![获得帮助信息命令](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/%E5%B8%AE%E5%8A%A9%E4%BF%A1%E6%81%AF%E5%91%BD%E4%BB%A4.png)
+
+③ 定义变量，计算变量值
+
+![定义变量计算变量](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/%E5%AE%9A%E4%B9%89%E5%8F%98%E9%87%8F%E8%AE%A1%E7%AE%97%E5%8F%98%E9%87%8F.png)
+
+④ 定义方法，调用方法
+
+![定义方法调用方法](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/%E5%AE%9A%E4%B9%89%E5%92%8C%E8%B0%83%E7%94%A8%E6%96%B9%E6%B3%95.png)
+
+⑤ 导入指定的包
+
+![导入指定包](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/%E5%AF%BC%E5%85%A5%E6%8C%87%E5%AE%9A%E7%9A%84%E5%8C%85.png)
+
+⑥ 列出当前 session 内所有有效的代码片段
+
+![list命令](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/list%E5%91%BD%E4%BB%A4.png)
+
+⑦ 查看当前 session 下所有创建过的变量
+
+![var命令](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/var%E5%91%BD%E4%BB%A4.png)
+
+⑧ 查看当前 session 下所有创建过的方法
+
+![methods命令](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/methods%E5%91%BD%E4%BB%A4.png)
+
+⑨ 从外部文件加载源代码
+
+源代码：
+
+```java
+// hello.java 文件中的内容
+public void hello() {
+ System.out.println("helllo hepingfly");
+}
+hello();
+```
+
+![open命令](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/open%E5%91%BD%E4%BB%A4.png)
+
+⑩ 退出 `jshell`
+
+![exit命令](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/exit%E5%91%BD%E4%BB%A4.png)
+
+注：
+
+> - `jshell` 可以使用 tab 键进行自动补全
+> - jshell 可以从文件中加载语句或者将语句保存到文件中
+> - 在 jshell 中定义相同方法名和参数列表的方法，即为对现有方法的覆盖。
+> - 在 jshell 中你会发现不会出现编译时异常，因为 jshell 帮你隐藏了。
 

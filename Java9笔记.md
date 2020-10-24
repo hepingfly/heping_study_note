@@ -153,3 +153,153 @@ hello();
 > - 在 jshell 中定义相同方法名和参数列表的方法，即为对现有方法的覆盖。
 > - 在 jshell 中你会发现不会出现编译时异常，因为 jshell 帮你隐藏了。
 
+#### 4、接口中定义私有方法
+
+在 Java9 中，接口更加灵活和强大，**方法的访问权限修饰符可以声明为 private 的了**，此时方法将不会成为你对外暴露的 API 的一部分。
+
+关于接口中可以声明的内容，不同版本之间的对比：
+
+① JDK7：
+
+> JDK7：
+> 1）、只能声明全局常量（public static final）
+> 2）、抽象方法（public abstract）
+
+② JDK8：
+
+> JDK8：
+> 1）、可以声明静态方法
+> 2）、可以声明默认方法
+> 静态方法和默认方法在接口中都是有方法体的， 也就意味着我们可以通过
+> 接口名去调用这个静态方法，或者通过这个接口的实现类对象来调用默认方法
+
+③ JDK9：
+
+> JDK9：
+> 1）、支持声明私有方法
+
+
+
+```java
+/**
+ * java9 接口
+ * @author hepingfly
+ * @date 2020/10/24 2:31 下午
+ */
+public interface Java9Interface {
+
+    /**
+     * JDK7：
+     * 1）、只能声明全局常量（public static final）
+     * 2）、抽象方法（public abstract）
+     * @author hepingfloy
+     * @date  2020/10/24 2:33 下午
+     */
+    void hello();
+
+    /**
+     * JDK8：
+     * 1）、可以声明静态方法
+     * 2）、可以声明默认方法
+     * 静态方法和默认方法在接口中都是有方法体的， 也就意味着我们可以通过
+     * 接口名去调用这个静态方法，或者通过这个接口的实现类对象来调用默认方法
+     * @author hepingfly
+     * @date  2020/10/24 2:36 下午
+     */
+    static void hello2() {
+        System.out.println("hepingfly");
+    }
+
+    default void hello3() {
+        System.out.println("hepingfly");
+    }
+
+    /**
+     * JDK9：
+     * 1）、支持声明私有方法
+     * @author hepingfly
+     * @date  2020/10/24 2:53 下午
+     */
+    private void hello4() {
+        System.out.println("hepingfly");
+    }
+}
+```
+
+![Java 各版本接口对比](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/Java%E5%90%84%E7%89%88%E6%9C%AC%E6%8E%A5%E5%8F%A3%E5%AF%B9%E6%AF%94.png)
+
+#### 5、钻石操作符使用升级
+
+可以与匿名实现类共同使用钻石操作符。
+
+```java
+public class DiamondOperator {
+    public static void main(String[] args) {
+        // java8 中这么写会报错,java9 可以
+        Set<String> set = new HashSet<>(){};
+    }
+}
+```
+
+#### 6、try 语句结构升级
+
+在 Java9 中可以在 try 子句中使用已经初始化过的资源。
+
+```java
+public class Java9Try {
+
+    /**
+     *  Java7 中关于异常，我们需要手动去处理，去关闭
+     * @author hepingfly
+     * @date  2020/10/24 4:09 下午
+     */
+    public void testJava7() {
+        InputStream is = null;
+        try {
+            is = new FileInputStream(new File("a.txt"));
+            System.out.println("hepingfly");
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (null != is) {
+                    is.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+     }
+
+     public void testJava8() {
+         /**
+          * 在 try 后面的小括号中声明的一些资源，它会自动的关闭，就不需要你手动的去关了
+          * 在 Java8 中要求资源对象的实例化，必须放在 try 后面的小括号内
+          */
+        try (InputStream is = new FileInputStream(new File("a.txt"))) {
+            System.out.println("hepingfly");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+     }
+
+     public void testJava9() {
+         /**
+          * 可以在 try 后面的小括号中调用已经实例化好的资源对象
+          * 多个资源对象以分号分隔
+          */
+         InputStreamReader is = new InputStreamReader(System.in);
+         OutputStreamWriter os = new OutputStreamWriter(System.out);
+         try (is;os) {
+             System.out.println(is.read());
+         } catch (Exception e) {
+             e.printStackTrace();
+         }
+     }
+}
+```
+
+
+
+
+

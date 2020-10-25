@@ -301,5 +301,101 @@ public class Java9Try {
 
 
 
+#### 7、下划线命名标识符的限制
+
+```java
+public class Java9Underline {
+    public static void main(String[] args) {
+        // _str 可以编译通过
+        String _str = "hello";
+        // 单独一个 _ 作为变量名，无法编译通过
+        String _ = "hello";
+    }
+}
+```
+
+
+
+#### 8、String 底层存储结构的变化
+
+JDK8 之前，底层使用 char[] 存储，JDK9 底层使用 byte[] 存储。
+
+![JDK9-String底层存储](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/JDK9-String%E5%BA%95%E5%B1%82%E5%AD%98%E5%82%A8.png)
+
+#### 9、创建只读集合
+
+1）、Java8 创建只读集合方式
+
+```java
+public static void testJava8() {
+    // 创建一个只读的 list
+    List<String> list = Collections.unmodifiableList(Arrays.asList("heping","fly"));
+    list.forEach(System.out::println);
+    // 创建一个只读的 set
+    Set<String> set = Collections.unmodifiableSet(new HashSet<>(Arrays.asList("heping","fly")));
+    set.forEach(System.out::println);
+    // 创建一个只读的 map
+    Map<Object, Object> map = Collections.unmodifiableMap(new HashMap<>() {
+        {
+            put("name", "hepingfly");
+            put("age", "18");
+        }
+    });
+    map.forEach((x,y) -> System.out.println(x + ":" + y));
+}
+```
+
+2）、Java9 创建只读集合方式
+
+```java
+public static void testJava9() {
+    // 创建一个只读的 list
+    List<String> list = List.of("heping", "fly");
+    // 创建一个只读的 set
+    Set<String> set = Set.of("heping", "fly");
+    // 创建一个只读的 map
+    Map<String, String> map = Map.of("name", "heping", "age", "18");
+    Map<String, String> map2 = Map.ofEntries(Map.entry("name", "heping"), Map.entry("age", "12"));
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

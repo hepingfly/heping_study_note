@@ -361,9 +361,82 @@ public static void testJava9() {
 
 
 
+#### 10、StreamAPI 增强
 
+在 Java9 中，Stream API 变的更好，Stream 接口中添加了 4 个新的方法，`dropWhile` 、 `takeWhile` 、`ofNullable` 、 还有个 iterator 方法的新重载方法。
 
+除了对 Stream 本身的扩展，Optional 和 Stream 之间的结合也得到了改进。现在可以通过 Optional 的新方法 stream() 将一个 Optional 对象转换为一个（可能是空的）Stream 对象。
 
+① takeWhile
+
+> 用于从 Stream 中获取一部分数据，接收一个 predicate 来进行选择。在有序的 Stream 中，takeWhile 返回从开头开始的尽量多的元素。
+
+```java
+/**
+  * takeWhile 方法
+ */
+public static void test1() {
+    List<Integer> list = Arrays.asList(13,11,45,18,20,16,96);
+    Stream<Integer> stream = list.stream();
+    /**
+         * 下面这行代码的意思就是：
+         * 当满足 x < 20 这个条件的时候我就 take(取)
+         * ① 13 小于 20 满足，我进行 take 然后输出
+         * ② 11 小于 20 满足，我进行 take 然后输出
+         * ③ 45 不小于 20 ，那么就停止，即使后面有小于 20 的数，我到这也停止了，后面的就不输出了
+         */
+    stream.takeWhile((x) -> x < 20).forEach(System.out::println);
+}
+```
+
+② dropWhile 
+
+> dropWhile 的行为与 takeWhile 相反，返回剩余的元素。
+
+```java
+public static void test2() {
+    List<Integer> list = Arrays.asList(13,11,45,18,20,16,96);
+    Stream<Integer> stream = list.stream();
+    /**
+         * 下面这行代码的意思就是：
+         * 当满足 x < 20 这个条件的时候我就 drop(丢)
+         * ① 13 小于 20 满足，我进行 drop 丢掉
+         * ② 11 小于 20 满足，我进行 drop 丢掉
+         * ③ 45 不小于 20 ，那么就停止，后面所有的数我都不进行 drop 了，即使有小于 20 的数
+         */
+    stream.dropWhile((x) -> x < 20).forEach(System.out::println);
+}
+```
+
+③ ofNullable 的使用
+
+> Java8 中 Stream 不能完全为 Null ，否则会报空指针异常。而 Java9 中的 ofNullable 方法允许我们创建一个单元素 Stream ,可以包含一个非空元素，也可以创建一个空 Stream 。
+
+```java
+public static void test3() {
+    Stream<Integer> stream = Stream.of(1, 2, 3, null);
+    stream.forEach(System.out::println);
+
+    // 如果只有单个元素，此元素不能为 null,否则报空指针异常
+    Stream<Object> stream1 = Stream.of(null);
+
+    // Java9 新增 ofNullable 允许单个元素为空
+    Stream<Object> stream2 = Stream.ofNullable(null);
+    System.out.println(stream2.count());   // 0
+}
+```
+
+④ iterate 函数重载
+
+```java
+public static void test4() {
+    // 需要通过 limit 来控制终止
+    Stream.iterate(0, x -> x + 1).limit(10).forEach(System.out::println);
+
+    // 这里就可以通过传入一个断言型函数来进行终止
+    Stream.iterate(0, x -> x < 10, x -> x + 1).forEach(System.out::println);
+}
+```
 
 
 

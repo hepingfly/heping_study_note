@@ -41,6 +41,89 @@ SpringBoot 官方强烈建议升级到 2.X 以上版本
 > - 如果只用 springboot 那么直接使用最小版本即可。
 > - 如果同时使用 springboot 和 springcloud ，需要照顾 springcloud ，由 springcloud 决定 springboot 的版本。
 
+### 二、服务工程构建
+
+#### 1、创建父工程
+
+Pom.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>org.example</groupId>
+    <artifactId>springcloud2020</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <!-- 父工程，打包方式为 pom,不再是默认的 jar -->
+    <packaging>pom</packaging>
+
+    <!-- 统一管理 jar 包版本 -->
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <junit.version>4.12</junit.version>
+        <log4j.version>1.2.17</log4j.version>
+        <lombok.version>1.16.18</lombok.version>
+        <mysql.version>5.1.47</mysql.version>
+        <druid.version>1.1.16</druid.version>
+        <mybatis.spring.boot.version>1.3.0</mybatis.spring.boot.version>
+    </properties>
+
+    <dependencies>
+        <!--SpringBoot 版本-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-dependencies</artifactId>
+            <version>2.2.2.RELEASE</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+
+        <!--Springcloud 版本-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-dependencies</artifactId>
+            <version>Hoxton.SR1</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+
+        <!--Springcloud alibaba 版本-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+            <version>2.1.0.RELEASE</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>${mysql.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>druid</artifactId>
+            <version>${druid.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mybatis.spring.boot</groupId>
+            <artifactId>mybatis-spring-boot-starter</artifactId>
+            <version>${mybatis.spring.boot.version}</version>
+        </dependency>
+    </dependencies>
+
+
+</project>
+```
+
 
 
 

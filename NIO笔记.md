@@ -29,16 +29,16 @@ Java NIO 系统的核心在于：==通道==（Channel）和==缓冲区==（Buffe
 
 - **NIO**
 
- ![缓冲区](http://pg857jqvv.bkt.clouddn.com/%E7%BC%93%E5%86%B2%E5%8C%BA.png)
+ ![缓冲区](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-nio/%E7%BC%93%E5%86%B2%E5%8C%BA.png)
 
 > - 我们说只要是 IO ，那么就是为了完成数据传输的。
 > - 即便你用 NIO ，它也是为了数据传输，所以你要想完成数据传输，你也得建立一个用于传输数据的通道，这个通道你不能把它理解为之前的水流了，但是你可以把它理解为铁路，铁路本身是不能完成运输的，铁路要想完成运输它必须依赖火车，说白了这个通道就是为了连接目标地点和源地点。所以注意==通道本身不能传输数据，要想传输数据必须要有缓冲区==，这个缓冲区你就可以完全把它理解为火车，比如说你现在想把程序中的数据写到文件中，那么你就可以把数据都写到缓冲区，然后缓冲区通过通道进行传输，最后再把数据从缓冲区拿出来写到文件中，你想把文件中的数据传数到程序中，也是一个道理，把数据写到缓冲区，缓冲区通过通道进行传输，到程序中把数据拿出来。所以我们说原来的 IO 单向的现在的缓冲区是双向的，这种传输数据的方式也叫面向缓冲区。总结一下，就是通道只负责连接，缓冲区才负责存储数据。
 
 #### 4、缓冲区的数据存取
 
-缓冲区（Buffer）：一个用于特定基本数据类型的容器。由 java.nio 包定义的，所有缓冲区都是 Buffer 抽象类的子类。
+缓冲区（Buffer）：一个用于特定基本数 据类型的容器。由 java.nio 包定义的，所有缓冲区都是 Buffer 抽象类的子类。
 
-![缓冲区数据的存取](http://pg857jqvv.bkt.clouddn.com/%E7%BC%93%E5%86%B2%E5%8C%BA%E6%95%B0%E6%8D%AE%E7%9A%84%E5%AD%98%E5%8F%96.png)
+![缓冲区数据的存取](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-nio/%E7%BC%93%E5%86%B2%E5%8C%BA%E6%95%B0%E6%8D%AE%E7%9A%84%E5%AD%98%E5%8F%96.png)
 
 ```java
 /**
@@ -150,6 +150,96 @@ public class TestBuffer {
 ```
 
 #### 5、直接缓冲区与非直接缓冲区
+
+1）、非直接缓冲区
+
+通过 `allocate()` 方法分配缓冲区，将缓冲区建立在 JVM 的内存之中。
+
+![非直接缓冲区](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-nio/%E9%9D%9E%E7%9B%B4%E6%8E%A5%E7%BC%93%E5%86%B2%E5%8C%BA.png)
+
+> 应用程序和磁盘之间想要传输数据，是没有办法直接进行传输的。操作系统出于安全的考虑，会经过上图几个步骤。例如，我应用程序想从磁盘中读取一个数据，这时候我应用程序向操作系统发起一个读请求，那么首先磁盘中的数据会被读取到内核地址空间中，然后会把内核地址空间中的数据拷贝到用户地址空间中（其实就是 JVM 内存中），最后再把这个数据读取到应用程序中来。
+>
+> 同样，如果我应用程序有数据想要写到磁盘中去，那么它会首先把这个数据写入到用户地址空间中去，然后把数据拷贝到内核地址空间，最后再把这个数据写入到磁盘中去。
+
+
+
+2）、直接缓冲区
+
+通过 `allocateDirect()` 方法分配缓冲区，将缓冲区建立在物理内存之中。
+
+![直接缓冲区](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-nio/%E7%9B%B4%E6%8E%A5%E7%BC%93%E5%86%B2%E5%8C%BA.png)
+
+```java
+public static void test3() {
+    // 分配直接缓冲区
+    ByteBuffer byteBuffer = ByteBuffer.allocateDirect(1024);
+    // 判断是直接缓冲区还是非直接缓冲区
+    System.out.println(byteBuffer.isDirect());
+}
+```
+
+
+
+**注：**
+
+字节缓冲区是直接缓冲区还是非直接缓冲区可通过调用其 `isDirect()` 方法来确定。
+
+#### 6、通道
+
+1）、介绍
+
+> - 通道（channel）：由 java.nio.channels 包定义的。Channel 表示 IO 源与目标打开的连接。Channel 类似于传统的流，只不过 Channel 本身不能直接访问数据，Channel 只能与 Buffer 进行交互。
+> - 通道用于源节点与目标节点的连接。在 Java NIO 中负责缓冲区中数据的传输。Channel 本身不存储数据，因此需要配合缓冲区进行传输。
+
+2）、主要实现类
+
+> `java.nio.channels.Channel`
+>
+> - FileChannel
+> - SocketChannel
+> - ServerSocketChannel
+> - DatagramChannel
+
+3）、获取通道
+
+```
+1、Java 针对支持通道的类提供了 getChannel() 方法
+	本地IO：
+	FileInputStream/FileOutputStream
+	RandomAccessFile
+	网络IO:
+	Socket
+	ServerSocket
+	DatagramSocket
+以上几个类都可以通过调用 getChannel() 方法获取通道
+
+2、在 JDK1.7 中的 NIO.2 针对各个通道提供了静态方法 open()
+3、在 JDK1.7 中的 NIO.2 的 Files 工具类的 newByteChannel() 方法
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -217,6 +217,37 @@ public static void test3() {
 3、在 JDK1.7 中的 NIO.2 的 Files 工具类的 newByteChannel() 方法
 ```
 
+#### 7、通道数据传输和内存映射文件
+
+1）、使用通道完成文件的复制（非直接缓冲区）
+
+```java
+public static void test1() throws Exception {
+        // 利用通道完成文件的复制(非直接缓冲区)
+        FileInputStream fis = new FileInputStream("a.txt");
+        FileOutputStream fos = new FileOutputStream("b.txt");
+        // 获取通道
+        FileChannel fisChannel = fis.getChannel();
+        FileChannel foschannel = fos.getChannel();
+
+        // 通道没有办法传输数据，必须依赖缓冲区
+        // 分配指定大小的缓冲区
+        ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
+
+        // 将通道中的数据存入缓冲区中
+        while (fisChannel.read(byteBuffer) != -1) {  // fisChannel 中的数据读到 byteBuffer 缓冲区中
+            byteBuffer.flip();  // 切换成读数据模式
+            // 将缓冲区中的数据写入通道
+            foschannel.write(byteBuffer);
+            byteBuffer.clear();  // 清空缓冲区
+        }
+        foschannel.close();
+        fisChannel.close();
+        fos.close();
+        fis.close();
+    }
+```
+
 
 
 

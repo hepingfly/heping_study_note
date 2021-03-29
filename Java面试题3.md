@@ -788,6 +788,218 @@ Spring 解决循环依赖依靠的是 Bean 的 "中间态" 这个概念，而这
 
 > 比如说点赞或者点踩，可以用 incr key 去递增。或者公众号的阅读数，也可以用 incr 去进行递增。
 
+#### 4、hash 数据类型应用场景
+
+redis 中 hash 对应 java 中的数据类型就是 `Map<String, Map<Object, Object>>`  。k-v 键值对，value 又是一个 k-v 键值对。
+
+> - 一次设置一个字段值       `hset key field value`
+> - 一次获取一个字段值       `hget key field`
+> - 一次设置多个字段值         hmset key field value [field value ...]
+> - 一次获取多个字段值         `hmget key  field [field ...]`
+> - 获取所有字段值               `hgetall  key`
+> - 获取某个 key 内的全部数量    `hlen`
+> - 删除一个 key                  `hdel`
+
+#### 5、set 数据类型应用场景
+
+> - 添加元素      `SADD key member[member]`
+> - 删除元素       `SREM key member[member]`
+> - 获取集合中所有元素         `SMEMBERS key`
+> - 判断元素是否在集合中      `SISMEMBER key member`
+> - 获取集合中的元素个数        `SCARD key`
+> - 从集合中随机弹出一个元素，元素不删除         `SRANDMEMBER key [cout]`
+> - 从集合中随机弹出一个元素，出一个删一个      `SPOP key [count]`
+
+应用场景：
+
+①
+
+> 比如说抽奖小程序，点击 立即参与  ，就相当于 sadd key 用户id ，把这个用户加到集合里面
+>
+> 显示一共有多少人参加抽奖，就相当于 SCARD key ，统计下一共有多少个用户在这个 set 里面
+>
+> 抽奖其实就是从 set 中任意选取 n 个中奖人， `SRANDMEMBER key 2` 随机抽 2 个人，元素不删除
+>
+> `SPOP key 3`  随机抽 3 个人，元素删除
+
+②
+
+> 比如朋友圈点赞，新增点赞   `sadd pub:messageId 点赞用户id1 点赞用户id2`   ，其实就是把点赞用户 id 放到 set 里面去
+>
+> 取消点赞     `srem pub:messageId`  点赞用户id    ，其实就是把点赞用户 id 从 set 中移除
+>
+> 统计多少人点赞了， `scard pub:messageId`  
+
+
+
+#### 6、zset 数据类型应用场景
+
+> 向有序集合中加入一个元素和该元素的分数
+>
+> - 添加元素      `ZADD key score member [score member]`
+> - 
+
+
+
+### 五、redis 分布式锁
+
+#### 1、redis 售卖商品案例
+
+**分布式锁使用场景：**
+
+分布式服务中保证在同一时刻同一个用户只能有一个请求，打到我们的服务上。防止关键业务出现数据冲突和并发错误。
+
+**代码案例：**
+
+① pom.xml
+
+```xml
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>2.4.3</version>
+    <relativePath/> <!-- lookup parent from repository -->
+</parent>
+<dependencies>
+        <!--web + actuator-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <version>1.5.9.RELEASE</version>
+        </dependency>
+
+        <!--springboot 与 redis 整合依赖-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <version>2.3.3.RELEASE</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-pool2</artifactId>
+            <version>2.4.2</version>
+        </dependency>
+
+        <!--jedis-->
+        <dependency>
+            <groupId>redis.clients</groupId>
+            <artifactId>jedis</artifactId>
+            <version>3.1.0</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+
+        <!--redisson-->
+        <dependency>
+            <groupId>org.redisson</groupId>
+            <artifactId>redisson</artifactId>
+            <version>3.13.4</version>
+        </dependency>
+ </dependencies>
+```
+
+② RedisConfig.java
+
+```java
+/**
+ * @auther hepingfly
+ * @date 2021/3/14 8:45 下午
+ */
+@Configuration
+public class RedisConfig {
+    @Bean
+    public RedisTemplate<String, Serializable> redisTemplate(LettuceConnectionFactory connectionFactory) {
+        RedisTemplate<String, Serializable> redisTemplate = new RedisTemplate<>();
+        redisTemplate.setConnectionFactory(connectionFactory);
+        redisTemplate.setKeySerializer(new StringRedisSerializer());
+        redisTemplate.setValueSerializer(new GenericJackson2JsonRedisSerializer());
+        return redisTemplate;
+    }
+}
+```
+
+③ GoodsController.java
+
+```java
+/**
+ * @auther hepingfly
+ * @date 2021/3/14 8:54 下午
+ */
+@RestController
+public class GoodsController {
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    @GetMapping("/buyGoods")
+    public String buyGoods() {
+        String result = stringRedisTemplate.opsForValue().get("goods");
+        int goodsNumber = result == null ? 0 : Integer.parseInt(result);
+        if (goodsNumber > 0) {
+            int num = goodsNumber - 1;
+            stringRedisTemplate.opsForValue().set("goods", String.valueOf(num));
+            return "买到商品，库存还剩：" + num;
+        }
+        return "商品已售完";
+    }
+```
+
+
+
+#### 2、添加分布式锁
+
+```java
+/**
+ * @auther hepingfly
+ * @date 2021/3/14 8:54 下午
+ */
+@RestController
+public class GoodsController {
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    public static final String REDIS_LOCK = "hepingfly";
+
+    @GetMapping("/buyGoods")
+    public String buyGoods() {
+        // 添加 redis 分布式锁
+        String value = UUID.randomUUID().toString() + Thread.currentThread().getName();
+        stringRedisTemplate.opsForValue().setIfAbsent(REDIS_LOCK, value);
+        String result = stringRedisTemplate.opsForValue().get("goods");
+        int goodsNumber = result == null ? 0 : Integer.parseInt(result);
+        if (goodsNumber > 0) {
+            int num = goodsNumber - 1;
+            stringRedisTemplate.opsForValue().set("goods", String.valueOf(num));
+            stringRedisTemplate.delete(REDIS_LOCK);
+            return "买到商品，库存还剩：" + num;
+        }
+        return "商品已售完";
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -344,7 +344,56 @@ public static void test4() throws Exception {
 }
 ```
 
+#### 9、字符集
 
+编码：把字符串转换成字节数组的过程就是编码
+
+解码：把字节数组转换成字符串的过程就是解码
+
+1）、查看 nio 包下的 CharSet 类支持哪些字符集
+
+```java
+public static void test5() {
+    // Java nio 包下提供了一个字符集 Charset 类
+    SortedMap<String, Charset> charsets = Charset.availableCharsets();
+    // 查看 CharSet 支持的字符集种类数
+    for (Map.Entry<String, Charset> entry: charsets.entrySet()) {
+        System.out.println(entry.getKey() + "-->" + entry.getValue());
+    }
+}
+```
+
+2）、字符编码使用案例
+
+```java
+public static void test6() throws CharacterCodingException {
+    // 指定字符集编码
+    Charset charset = Charset.forName("GBK");
+    // 获取编码器
+    CharsetEncoder encoder = charset.newEncoder();
+    // 获取解码器
+    CharsetDecoder decoder = charset.newDecoder();
+    // 字符缓冲区
+    CharBuffer charBuffer = CharBuffer.allocate(1024);
+    charBuffer.put("视频号 hepingfly");
+    charBuffer.flip();
+    // 字符缓冲区编码成字节缓冲区(编码)
+    ByteBuffer byteBuffer = encoder.encode(charBuffer);
+    // 字节缓冲区解码成字符缓冲区(解码)
+    CharBuffer cbuffer = decoder.decode(byteBuffer);
+    System.out.println(cbuffer.toString());  // 打印 视频号 hepingfly
+    System.out.println("***************");
+    // 上面是用 GBK 去编码的，下面尝试使用 UTF8 去解码
+    Charset utf8 = Charset.forName("UTF-8");
+    byteBuffer.flip();
+    CharBuffer utf8Buffer = utf8.decode(byteBuffer);
+    System.out.println(utf8Buffer.toString());  // 发现打印乱码 ��Ƶ�� hepingfly
+}
+```
+
+
+
+### 三、NIO 的非阻塞式网络通信
 
 
 

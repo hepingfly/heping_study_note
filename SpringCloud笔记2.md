@@ -607,11 +607,121 @@ public class Application {
 }
 ```
 
+#### 5、集群 eureka 搭建
 
+**1）、搭建步骤**
 
+新建另 一个 Eureka Server  `springcloud-eureka-server7002`
 
+① pom 文件和  `springcloud-eureka-server7001` 保持一致
 
+② application.yml 文件
 
+```yaml
+----------------------------先看单机版配置文件-----------------------
+eureka:
+  instance:
+    hostname: localhost   #eureka 服务端实例名称
+  client:
+    # flase 表示不向注册中心注册自己
+    register-with-eureka: false
+    # false 表示自己就是注册中心，我的职责就是维护服务实例，并不需要去检索服务
+    fetch-registry: false
+    service-url:
+      #设置与 eureka server 交互的地址查询服务和注册服务都需要依赖这个地址
+      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
+      
+--------------------------server7001 配置文件 -------------------------
+server:
+  port: 7001
+eureka:
+  instance:
+    hostname: eureka7001.com   #eureka 服务端实例名称
+  client:
+    # flase 表示不向注册中心注册自己
+    register-with-eureka: false
+    # false 表示自己就是注册中心，我的职责就是维护服务实例，并不需要去检索服务
+    fetch-registry: false
+    service-url:
+      #设置与 eureka server 交互的地址查询服务和注册服务都需要依赖这个地址
+      defaultZone: http://eureka7002.com:7002/eureka/  #7001 这台 server 需要把服务注册进 7002 中，7002 也要把服务注册进7001 中，相互注册，相互守望
+
+--------------------------server7002 配置文件 -------------------------
+
+server:
+  port: 7002
+eureka:
+  instance:
+    hostname: eureka7002.com   #eureka 服务端实例名称
+  client:
+    # flase 表示不向注册中心注册自己
+    register-with-eureka: false
+    # false 表示自己就是注册中心，我的职责就是维护服务实例，并不需要去检索服务
+    fetch-registry: false
+    service-url:
+      #设置与 eureka server 交互的地址查询服务和注册服务都需要依赖这个地址
+      defaultZone: http://eureka7001.com:7001/eureka/  #7002 需要把服务注册进 7001 中
+
+```
+
+**2）、将支付服务发布到 eureka 集群中**
+
+`springcloud-provider-payment8001`  服务发布到 eureka 集群中
+
+① 修改 application.yml 文件
+
+```yaml
+# ---------------------单机版配置--------------------
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:7001/eureka
+    #表示是否将自己注册进 eureka
+    register-with-eureka: true
+    # 是否从 eurekaserver 抓取已有的注册信息。单节点无所谓，集群必须设置为 true才能配合 ribbon 使用负载均衡
+    fetch-registry: true
+ 
+# ---------------------集群版配置--------------------
+eureka:
+  client:
+    service-url:
+      # 集群版 eureka 配置
+    defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka
+    #表示是否将自己注册进 eureka
+    register-with-eureka: true
+    # 是否从 eurekaserver 抓取已有的注册信息。单节点无所谓，集群必须设置为 true才能配合 ribbon 使用负载均衡
+    fetch-registry: true
+```
+
+**3）、将订单服务发布到 eureka 集群中**
+
+`springcloud-consumer-order80` 服务发布到 eureka 集群中
+
+① 修改 application.yml 文件
+
+```yaml
+# ---------------------单机版配置--------------------
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:7001/eureka
+    #表示是否将自己注册进 eureka
+    register-with-eureka: true
+    # 是否从 eurekaserver 抓取已有的注册信息。单节点无所谓，集群必须设置为 true才能配合 ribbon 使用负载均衡
+    fetch-registry: true
+    
+# ---------------------集群版配置--------------------
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka
+    #表示是否将自己注册进 eureka
+    register-with-eureka: true
+    # 是否从 eurekaserver 抓取已有的注册信息。单节点无所谓，集群必须设置为 true才能配合 ribbon 使用负载均衡
+    fetch-registry: true
+```
+
+6、支付服务集群搭建
 
 
 

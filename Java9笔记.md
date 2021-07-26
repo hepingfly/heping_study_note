@@ -13,7 +13,7 @@
 
 1）、Java9 之前的目录结构
 
-![Java9 之前的目录结构](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-Java9/Java9%E4%B9%8B%E5%89%8D%E7%9B%AE%E5%BD%95%E7%BB%93%E6%9E%84.png)
+![Java9 之前的目录结构](/Users/shenheping/Desktop/Java9之前目录结构.png)
 
 
 
@@ -439,6 +439,18 @@ public static void test4() {
 ```
 
 
+
+#### 11、Optional 提供的 Stream 方法
+
+```java
+public static void test1() {
+    List<String> list = Arrays.asList("a","b","c");
+    Optional<List<String>> optional = Optional.ofNullable(list);
+    // optional 类中提供了转换为 stream 的方法
+    Stream<List<String>> stream = optional.stream();
+    stream.forEach(System.out::println);
+}
+```
 
 
 

@@ -288,19 +288,233 @@ Java 作为最流行的编程语言之一，其应用性能诊断一直受到业
 
 #### 4、jmap ：导出内存映像文件和内存使用情况
 
-1）、介绍
+**1）、介绍**
 
 > jmap ：JVM Memory Map
 >
-> 作用一方面是获取 dump 文件，它还可以获取目标 Java 进程的内存相关信息，包括 Java 堆各区域的使用情况、堆中对象的统计信息、类加载信息
+> 作用一方面是获取 dump 文件（堆内存快照文件,二进制文件），它还可以获取目标 Java 进程的内存相关信息，包括 Java 堆各区域的使用情况、堆中对象的统计信息、类加载信息
+
+**2）、基本语法**
+
+> `jmap [option] <pid>`
+>
+> `jmap [option] <executable> <core>`
+>
+> `jmap [option] [server_id@]<remote server IP or hostname>`
+
+其中 option 参数包括一下内容：
+
+> - -dump ：生成 Java 堆转储快照（dump 文件）
+>   - `-dump:live`  只保存堆中存活的对象
+> - -heap ：输出整个堆空间的详细信息，包括 GC 的使用、堆配置信息、以及内存的使用信息
+> - -histo ：输出堆中对象的统计信息，包括类、实例数量和合计容量
+>   - `-histo:live` 只统计堆中存活的对象
+> - -permstat ：以ClassLoader为统计口径输出永久代的内存状态信息
+> -  -finalizerinfo ：显示在F-Queue中等待Finalizer线程执行finalize方法的对象
+> - -F ：当虚拟机进程对-dump选项没有任何响应时，可便用此选项强制执行生成dump文件
+> - `-J <flag>`  ：传递参数给 jmap 启动 jvm
+
+为什么要导出 dump 文件，dump 文件的作用是啥？
+
+如果程序在执行过程中，出现了堆的溢出或者非堆的溢出（方法区、metaspace 也可能会出现溢出），我们就需要对数据进行分析，具体就是分析这个 dump 文件。
+
+**3）、导出内存映像文件**
+
+① 手动的方式
+
+`jmap -dump:format=b,file=<fileName.hprof> <pid>`
+
+`jmap -dump:live,format=b,file=<fileName.hprof> <pid>`
+
+② 自动的方式
+
+`-XX:+HeapDumpOnOutOfMemoryError`
+
+`-XX:+HeapDumpPath=<fileName.hprof>`
+
+**注：**
+
+> 自动和手动对应着两种使用场景，手动导出可以在没发生 OOM 之前就可以把 dump 文件导出进行分析。
+>
+> 但是当程序发生 OOM 退出系统时，一些瞬时信息都随着程序的终止而消失，而重现 OOM 问题比较困难或者耗时，所以如果可以在 OOM 时，自动导出 dump 文件就显得非常迫切。
+>
+> 所以我们就可以采用自动的方式去获取 dump 文件：
+>
+> `-XX:+HeapDumpOnOutOfMemoryError`  ：当程序发生 OOM 时，导出应用程序的当前堆快照
+>
+> `-XX:+HeapDumpPath=<<fileName.hprof>>`  ： 指定堆快照的保存位置
+>
+> 例如：
+>
+> `-Xmx100m -XX:+HeapDumpOnOutOfMemoryError  -XX:+HeapDumpPath=D:\1.hprof`
 
 
 
+**说明：**
+
+1、通常在写 Heap Dump 文件前会触发一次 Full GC，所以 heap dump 文件里保存的都是 FullGC 后留下的对象信息。
+
+2、由于生成 dump 文件比较耗时，因此需要耐心等待，尤其大内存镜像生成 dump 文件则需要耗费更长的时间来完成。
 
 
 
+**4）、导出堆内存相关信息**
+
+`jmap -heap pid`
+
+`jmap -histo pid`
+
+可以通过以上两个命令导出这个时间点，堆内存相关信息
 
 
+
+#### 5、jhat：JDK 自带堆分析工具
+
+1）、介绍
+
+> jhat （JVM Heap Analysis Tool）：
+>
+> Sun JDK 提供的 jhat 命令与 jmap 命令搭配使用，用于分析 jmap 生成的 heap dump 文件。jhat 内置了一个微型的 HTTP/HTML 服务器，用于生成 dump 文件的分析结果后，用户可以在浏览器中查看分析结果。
+>
+> 使用了 jhat 命令，就启动了一个 http 服务，端口是 7000，即 `http://localhost:7000` 就可以在浏览器中分析。
+
+**注：**
+
+jhat 命令在 JDK9、JDK10 中已经被删除，官方建议使用 Visual VM 代替
+
+
+
+#### 6、jstack：打印 JVM 中线程快照
+
+**1）、介绍**
+
+> jstack ：JVM Stack Trace
+>
+> 用于生成虚拟机指定进程当前时刻的线程快照。线程快照就是当前虚拟机内指定进程的每一条线程正在执行的方法堆栈的集合。
+>
+> 生成线程快照的作用：
+>
+> 可用于定位线程出现长时间停顿的原因，如线程间死锁、死循环、请求外部资源导致的长时间等待问题。这些都是导致线程长时间停顿的常见原因。当线程出现停顿时，就可以用 jstack 显示各个线程调用的堆栈情况。
+
+在线程 dump 中，我们一般会重点留意下面几种状态：
+
+> - 死锁， Deadlock（重点关注）
+> - 等待资源，Waiting on condition（重点关注）
+> - 等待获取监视器，Waiting on monitor entry（重点关注）
+> - 阻塞，Blocked（重点关注）
+> - 执行中，Runnable
+> - 暂停，Suspended
+> - 对象等待中，Object.wait()   或 TIMED_WAITING
+> - 停止， Parked
+
+2）、基本语法：
+
+> `jstack option pid`
+
+option 参数包括下面几个：
+
+> - `-F` ：当正常输出的请求不被响应时，强制输出线程堆栈
+> - `-l`：除堆栈外，显示关于锁的附加信息
+> - `-m` ：如果调用到本地方法的话，可以显示 C/C++ 的堆栈
+> -  
+
+案例代码：
+
+```java
+/**
+ * @auther hepingfly
+ * @date 2021/4/5 1:27 下午
+ */
+public class SleepTest {
+    public static void main(String[] args) {
+        System.out.println("hepingfly");
+        try {
+            Thread.sleep(1000 * 60 * 20);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+上面这段代码处于等待中，下面用 jstack 去分析一下：
+
+![jstack分析代码](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-jvm/jstack%E5%88%86%E6%9E%90%E4%BB%A3%E7%A0%81.png)
+
+
+
+### 三、JVM 监控及诊断-GUI篇
+
+#### 1、概述
+
+使用命令行去监控或者诊断 Java 性能相关信息虽然方便，但是存在以下局限：
+
+1、无法获取方法级别的分析数据，如方法间的调用关系、各方法的调用次数和调用时间等（这对定位应用性能瓶颈至关重要）
+
+2、要求用户登录到目标 Java 应用所在的宿主机上，使用起来不是很方便
+
+3、分析数据通过终端输出，结果展示不够直观
+
+图形化诊断工具：
+
+> - JDK 自带的工具
+>   - jconsole ：JDK 自带的可视化监控工具。查看 Java 应用程序的运行概况、监控堆信息、永久区使用情况、类加载情况等
+>   - Visual VM ：提供了一个可视化界面，用于查看 Java 虚拟机上运行的基于 Java 的应用程序详细信息
+>   - JMC ：能够以极低的性能开销收集 Java 虚拟机的性能数据
+> - 第三方工具
+>   - MAT ：Memory Analyzer Tool ，是基于 Eclipse 的内存分析工具，是一个快速、功能丰富的 Java heap 分析工具，可以帮助我们查找内存泄漏
+>   - JProfiler ：商业软件，需要付费，功能强大。
+>   - Arthas ：Alibaba 开源的 Java 诊断工具。深受开发者喜爱。
+>   - Btrace ：Java 运行时追踪工具。可以在不停机的情况下，跟踪指定的方法调用、构造函数调用和系统内存等信息
+
+#### 2、jConsole 使用
+
+1、概述
+
+> 从 Java5 开始，在 JDK 中自带的 Java 监控和管理控制台
+>
+> 用于对 JVM 中内存、线程和类的监控，是一个基于 JMX（Java Management extensions）的 GUI 性能监控工具
+
+2、启动
+
+直接去 bin 目录下启动即可。
+
+3、连接方式
+
+> - 本地连接
+>   - 使用 jConsole 连接一个正在本地系统运行的 JVM ，并且执行程序和运行 jConsole 的需要是同一个用户。jConsole 使用文件系统的授权通过 RMI 连接器连接到平台的 MBean 服务器上。这种从本地连接的监控能力只有 Sun 的 JDK 具有。
+> - 远程
+>   - 使用下面的 URL 通过 RMI 连接器连接到一个 JMX 代理， `service:jmx:rmi:///jndi/rmi://hostname:port/jmxmi`  jConsole 为建立连接，需要在环境变量中设置 mx.remote.credentials 来指定用户名和密码，从而进行授权。
+> - 高级
+>   - 使用一个特殊的 URL 连接 JMX 代理。一般情况使用自己定制的连接器而不是 RMI 提供的连接器来连接 JMX 代理，或者是一个使用 JDK1.4 的实现了 JMX 和 JMX Remote 的应用。
+
+
+
+#### 3、Visual VM
+
+**1、概述**
+
+> - Visual VM 是一个功能强大的多合一故障诊断和性能监控的可视化工具。
+> - 它集成了多个 JDK 命令行工具，使用 Visual VM 可用于显示虚拟机进程以及虚拟机进程的配置和环境信息（类似于命令行使用 jps ，jinfo）监视应用程序的 CPU、GC、堆、方法区及线程的信息（jstat ， jstack）等，甚至代替 JConsole。
+> - 在 JDK6 Update JDK7 以后，Visual VM 便作为 JDK 的一部分发布（在 JDK 的 bin 目录下）。即：它完全免费
+> - 此外，Visual VM 也可以作为独立的软件安装。
+
+**注：**
+
+JDK9 以后 visual VM 不再集成在 Oracle JDK 中，需要单独下载安装。
+
+下载地址：`https://visualvm.github.io/download.html`
+
+下载之后解压到 JDK 目录下即可。
+
+
+
+**2、插件的安装**
+
+- Visual VM 的一大特点就是支持插件扩展，并且插件安装非常方便。我们既可以通过离线下载插件文件 `*.nbm` ,然后在 Plugin 对话框的已下载页面下，添加已下载的插件。也可以在可用插件页面下，在线安装插件。
+- 插件地址：`https://visualvm.github.io/pluginscenters.html`
+- IDEA 中安装 Visual VM
+  - Preferences --  Plugins -- 搜索 Visual VM Launcher ，安装重启即可
 
 
 

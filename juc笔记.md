@@ -1657,19 +1657,28 @@ class ForkJoinSumCalculate extends RecursiveTask<Long> {
 
 
 
+------
 
+​																			二刷
 
+------
 
+### 一、JUC 概述
 
+#### 1、什么是 JUC
 
+JUC 是 `java.util.concurren` 工具包的简称。是一个处理线程的工具包，在 JDK1.5 的时候出现的。
 
+#### 2、进程和线程概念
 
+进程：系统中正在运行的一个应用程序，程序一旦运行就是进程，进程是资源分配的最小单位。
 
+线程：进程之内独立执行的一个单元执行流。线程是程序执行的最小单元。
 
+#### 3、wait方法和 sleep 方法区别
 
-
-
-
+> - sleep 方法是 Thread 类中的方法，wait 方法是 Object 中的方法
+> - sleep 方法不会释放锁
 
 
 

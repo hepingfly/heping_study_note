@@ -721,7 +721,446 @@ eureka:
     fetch-registry: true
 ```
 
-6、支付服务集群搭建
+#### 6、支付服务集群搭建
+
+**1）、搭建步骤**
+
+新建另 一个 支付服务（服务提供者）  `springcloud-provider-payment8002`
+
+① pom 文件和  `springcloud-provider-payment8001` 保持一致
+
+② application.yml 文件
+
+```yaml
+server:
+  port: 8002
+
+spring:
+  application:
+  # 应用名称都叫 springcloud-payment-service ，只不过一个名称下面可能有 8001，8002 多个服务
+    name: springcloud-payment-service  
+    
+eureka:
+  client:
+    service-url:
+      # 集群版 eureka 配置
+      defaultZone: http://eureka7001.com:7001/eureka,http://eureka7002.com:7002/eureka
+    #表示是否将自己注册进 eureka
+    register-with-eureka: true
+    # 是否从 eurekaserver 抓取已有的注册信息。单节点无所谓，集群必须设置为 true才能配合 ribbon 使用负载均衡
+    fetch-registry: true
+```
+
+③ 修改服务消费者的请求地址
+
+```java
+// --------------------原始的服务消费者---------------------
+@RestController
+@Slf4j
+public class OrderController {
+    @Resource
+    private RestTemplate restTemplate;
+
+    public static final String PAYMENT_URL = "http://localhost:8001";
+
+    @GetMapping("/consumer/payment/save")
+    public Result<Payment> save(Payment payment) {
+        return restTemplate.postForObject(PAYMENT_URL + "/payment/save", payment, Result.class);
+    }
+
+    @GetMapping("/consumer/payment/get/{id}")
+    public Result<Payment> getPayment(@PathVariable("id") Long id) {
+        return restTemplate.getForObject(PAYMENT_URL + "/payment/get/" + id, Result.class);
+    }
+}
+
+
+// --------------------现在的服务消费者---------------------
+@RestController
+@Slf4j
+public class OrderController {
+    @Resource
+    private RestTemplate restTemplate;
+	
+    // 请求地址修改为直接根据应用名称，来源于配置文件中 spring 的应用名称
+    public static final String PAYMENT_URL = "http://springcloud-payment-service ";
+
+    @GetMapping("/consumer/payment/save")
+    public Result<Payment> save(Payment payment) {
+        return restTemplate.postForObject(PAYMENT_URL + "/payment/save", payment, Result.class);
+    }
+
+    @GetMapping("/consumer/payment/get/{id}")
+    public Result<Payment> getPayment(@PathVariable("id") Long id) {
+        return restTemplate.getForObject(PAYMENT_URL + "/payment/get/" + id, Result.class);
+    }
+}
+
+```
+
+**注：**
+
+> 上面都操作完了以后，可能会存在一个问题，就是找不到对应的主机名称。
+>
+> 因为一个 `springcloud-payment-service`  应用名称下面有 2 个服务，8001 和 8002。服务消费者去访问的时候它不知道访问哪个，所以会报找不到对应的主机名称。
+
+**解决方式：**
+
+在服务消费者的 restTemplate 中添加负载均衡注解
+
+```java
+@Configuration
+public class ApplicationContextConfig {
+    @Bean
+    @LoadBalanced  // 添加负载均衡注解，赋予 RestTemplate 负载均衡的能力，默认是轮询
+    public RestTemplate getRestTemplate() {
+        return new RestTemplate();
+    }
+}
+```
+
+#### 7、服务发现 Discovery
+
+**1）、简介**
+
+对于注册进 eureka 里面的微服务，可以通过服务发现来获得该服务的信息。简单来说，就是拿到注册进 eureka 里面的服务的信息。
+
+① 修改 `springcloud-provider-payment8001`
+
+```java
+@RestController
+public class PaymentController {
+
+    @Resource
+    private PaymentService paymentService;
+
+    /**
+     * 服务发现客户端，通过这个 discoveryClient 可以获取注册进 eureka 的服务信息
+     */
+    @Resource
+    private DiscoveryClient discoveryClient;
+
+    @GetMapping("/payment/discovery")
+    public Object discovery() {
+        /**
+         * 获取到的是注册进 eureka 里面有哪几个服务（服务列表）
+         * 相当于 eureka 里面有几个配置文件spring.application.name 的值
+         */
+        List<String> services = discoveryClient.getServices();
+        for (String service: services) {
+            System.out.println("服务列表" + service);
+        }
+        /**
+         * 获取一个服务下面有多少个实例
+         * springcloud-payment-service 这个服务名称下面有两个服务实例
+         */
+        List<ServiceInstance> instances = discoveryClient.getInstances("springcloud-payment-service");
+        for (ServiceInstance instance : instances) {
+            // 这个服务实例的相关信息都可以拿到
+            System.out.println(instance.getServiceId() + instance.getHost() + instance.getPort() + instance.getUri());
+        }
+        return this.discoveryClient;
+    }
+}
+```
+
+② 修改主启动类
+
+```java
+@SpringBootApplication
+@EnableEurekaClient
+@EnableDiscoveryClient  // 添加开启服务发现注解
+public class Application {
+    public static void main(String[] args) throws ParserConfigurationException {
+        DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
+        documentBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+        SpringApplication.run(Application.class, args);
+    }
+}
+```
+
+#### 8、eureka 自我保护
+
+**1）、概述**
+
+默认情况下，如果 Eureka Server 在一定时间内没有收到某个微服务实例的心跳，Eureka Server 将会注销该实例（默认是 90s）。但是当网络分区发生故障时（延时、卡顿、拥挤），微服务与 EurekaServer 之间无法正常通信，以上行为就变得非常危险了，因为微服务本身是健康的，此时不应该注销这个微服务。Eureka 通过自我保护模式来解决这个问题，当 EurekaServer 在短时间丢失大量客户端连接，那么这个节点就会进入自我保护模式。
+
+**2）、故障现象**
+
+![eureka自我保护现象](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-springcloud/eureka%E8%87%AA%E6%88%91%E4%BF%9D%E6%8A%A4%E7%8E%B0%E8%B1%A1.png)
+
+**3）、禁止自我保护**
+
+① Eureka Server 端
+
+```yaml
+eureka:
+  server:
+    # 禁用自我保护模式，这样不可用的服务会被及时剔除
+    enable-self-preservation: false
+    # 间隔时间，单位是毫秒
+    eviction-interval-timer-in-ms: 2000
+```
+
+② 客户端
+
+```yaml
+eureka:
+  instance:
+    # eureka 客户端向服务端发送心跳的时间间隔，单位是秒（默认是 30s）
+    lease-renewal-interval-in-seconds: 1
+    # eureka 服务端在收到最后一次心跳后等待时间上限，单位是秒（默认是 90s），超时将剔除服务
+    lease-expiration-duration-in-seconds: 2
+```
+
+#### 9、eureka 停更
+
+![erueka停更](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-springcloud/eureka%E5%81%9C%E6%9B%B4.png)
+
+
+
+### 四、SpringCloud整合 Zookeeper 代替 Eureka
+
+#### 1、zookeeper 作为注册中心
+
+> - zookeeper 是一个分布式协调工具，可以实现注册中心的功能
+> - 需要关闭 Linux 防火墙后启动 zookeeper 服务器
+> - 用 zookeeper 服务器取代 Eureka 服务器，zk 作为服务注册中心
+
+#### 2、服务提供者
+
+① pom 文件
+
+```xml
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <version>2.2.0.RELEASE</version>
+        </dependency>
+        <dependency>
+            <groupId>com.hepingfly.springcloud</groupId>
+            <artifactId>springcloud-api-commons</artifactId>
+            <version>1.0-SNAPSHOT</version>
+        </dependency>
+        <!--springcloud 整合 zookeeper 客户端-->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-zookeeper-discovery</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.10</version>
+        </dependency>
+    </dependencies>
+```
+
+② 配置文件 application.yml
+
+```yaml
+server:
+  port: 8004
+spring:
+  application:
+    # 注册到 zookeeper 的服务名称
+    name: springcloud-provider-payment
+  cloud:
+    zookeeper:
+      connect-string: 192.168.1.110:2181
+```
+
+③ 主启动类
+
+```java
+@SpringBootApplication
+// 该注解用于向使用 consul 或者 zookeeper 作为注册中心时注册服务
+@EnableDiscoveryClient
+public class PaymentApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(PaymentApplication.class, args);
+    }
+}
+```
+
+④ controller 
+
+```java
+@RestController
+public class PaymentController {
+    @Value("${server.port}")
+    private String port;
+    @RequestMapping(value = "/payment/zk")
+    public String paymentZK() {
+        return "springcloud with zk" + port + UUID.randomUUID().toString();
+    }
+}
+```
+
+**注意：**
+
+之后启动的时候可能会存在一个问题，因为我们在 pom 文件中引入了一个依赖 `spring-cloud-starter-zookeeper-discovery` 这个依赖会帮我们导入 zookeeper 的 jar 包，如果导入的这个 jar 包和服务器上安装的 zookeeper 版本不一致的话，就会报 jar 包冲突。
+
+**解决方式：**
+
+排除冲突的 zookeeper jar 包，引入新的 jar 包。
+
+![zk jar包冲突](https://shp-notes-1257820375.cos.ap-chengdu.myqcloud.com/shp-springcloud/zk%20jar%E5%8C%85%E5%86%B2%E7%AA%81.png)
+
+```xml
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-zookeeper-discovery</artifactId>
+    <version>3.0.0</version>
+    <!--排除自带的 zookeeper -->
+    <exclusions>
+        <exclusion>
+            <groupId>org.apache.zookeeper</groupId>
+            <artifactId>zookeeper</artifactId>
+        </exclusion>
+    </exclusions>
+</dependency>
+
+<!--添加新的 zookeeper 版本，该 zookeeper 版本和服务器上的 zookeeper 版本一致-->
+<dependency>
+    <groupId>org.apache.zookeeper</groupId>
+    <artifactId>zookeeper</artifactId>
+    <version>3.4.6</version>
+</dependency>
+```
+
+解决完这个问题后，你启动应用，就会自动把当前应用名称注册到 zookeeper 中，对应 zookeeper 根节点下面也会多一个 service 节点。
+
+#### 3、临时节点还是永久节点
+
+微服务应用注册到 zookeeper 后，在 zookeeper 节点下面会自动创建节点，但是这个节点是临时节点还是永久节点呢？
+
+如果这个时候，你把微服务应用停掉，过一会（不是立刻）你会发现 zookeeper 下面的节点不存在了，因此它是临时节点。
+
+### 五、Consul 相关
+
+#### 1、consul 简介
+
+**1）、consul 简单说明**
+
+> - consul 是一套开源的分布式服务发现和配置管理系统，由 HashiCrop 公司用 Go 语言开发。
+> - consul 提供了微服务系统中的服务治理，配置中心，控制总线等功能。这些功能中的每一个都可以根据需要单独使用，也可以一起使用以构建全方位的服务网格。总之，consul 提供了一种完整的服务网格解决方案。
+
+2）、consul 可以做哪些事
+
+> - 服务发现
+>   - 提供 HTTP 和 DNS 两种发现方式
+> - 健康检查
+>   - 支持多种方式。HTTP 、TCP、Docker、Shell 脚本定制化
+> - KV 存储
+>   - Key Value 的存储方式
+> - 多数据中心
+>   - Consul 支持多数据中心
+> - 可视化 web 界面
+
+**3）、consul 中文文档**
+
+`https://www.springcloud.cc/spring-cloud-consul.html`
+
+#### 2、服务提供者注册进 consul
+
+① pom 文件
+
+```xml
+<dependencies>
+    <!--springcloud consul-server -->
+    <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-consul-discovery</artifactId>
+        <version>3.0.0</version>
+    </dependency>
+
+    <!--springboot 整合 web 组件-->
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-web</artifactId>
+        <version>2.2.2.RELEASE</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-devtools</artifactId>
+        <scope>runtime</scope>
+        <optional>true</optional>
+    </dependency>
+    <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>1.18.10</version>
+    </dependency>
+</dependencies>
+```
+
+② 配置文件 application.yml
+
+```yaml
+server:
+  port: 8006
+spring:
+  application:
+    # 注册到 consul 的服务名称
+    name: consul-provider-payment
+  cloud:
+    consul:
+      host: localhost
+      port: 8500
+      discovery:
+        service-name: ${spring.application.name}
+```
+
+③ 主启动类
+
+```java
+@SpringBootApplication
+// 该注解用于向使用 consul 或者 zookeeper 作为注册中心时注册服务
+@EnableDiscoveryClient
+public class PaymentApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(PaymentApplication.class, args);
+    }
+}
+```
+
+④ controller 
+
+```java
+@RestController
+public class PaymentController {
+
+    @Value("${server.port}")
+    private String port;
+
+    @RequestMapping(value = "/payment/consul")
+    public String paymentConsul() {
+        return "springcloud with consul" + port + UUID.randomUUID().toString();
+    }
+}
+```
+
+
+
+
+
+
+
+
+
+
 
 
 
